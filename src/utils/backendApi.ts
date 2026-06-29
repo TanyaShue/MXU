@@ -16,11 +16,16 @@ export function setBackendPort(port: number): void {
 }
 
 export function getApiBase(): string {
-  if (backendPort) {
-    const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
-    return `${protocol}//${window.location.hostname}:${backendPort}/api`;
+  // 正常情况：通过 Nginx 反向代理，用相对路径
+  if (window.location.host) {
+    return '/api';
   }
-  return '/api';
+  
+  // Fallback：直连后端
+  const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+  const hostname = window.location.hostname || '127.0.0.1';
+  const port = backendPort || 12701;
+  return `${protocol}//${hostname}:${port}/api`;
 }
 
 /** 安全解析 JSON 响应，204 / 空 body 时返回 undefined */
