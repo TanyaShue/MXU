@@ -15,7 +15,8 @@ import { isTaskCompatible } from '@/stores/helpers';
 import { maaService } from '@/services/maaService';
 import clsx from 'clsx';
 import { loggers, generateTaskPipelineOverride, computeResourcePaths } from '@/utils';
-import { getMxuSpecialTask } from '@/types/specialTasks';
+import { getMxuSpecialTask, shouldSkipMxuScreenshot } from '@/types/specialTasks';
+import { splitTasksIntoThreeSegments } from '@/utils/taskSegmentation';
 import type { TaskConfig, ControllerConfig } from '@/types/maa';
 import { normalizeAgentConfigs } from '@/types/interface';
 import { parseWin32ScreencapMethod, parseWin32InputMethod } from '@/types/maa';
@@ -317,6 +318,14 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
           savedDevice.wlrSocketPath ||
           savedDevice.playcoverAddress),
       );
+      const hasVisualTasks = compatibleTasks.some((task) => !shouldSkipMxuScreenshot(task.taskName));
+      const shouldUseDummyController = !hasVisualTasks;
+
+      if (shouldUseDummyController) {
+        log.info(`实例 ${targetInstance.name}: 仅包含非视觉特殊任务，跳过截图/识别流程`);
+      }
+
+      const canUseSavedDevice = hasSavedDevice && savedDevice && !shouldUseDummyController;
 
       let isTargetConnected = instanceConnectionStatus[targetId] === 'Connected';
       const isTargetResourceLoaded = instanceResourceLoaded[targetId] || false;
@@ -325,7 +334,8 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
       const canStartTask =
         (isTargetConnected && isTargetResourceLoaded) ||
         (hasSavedDevice && resource) ||
-        (controller && resource);
+        (controller && resource) ||
+        (shouldUseDummyController && resource);
 
       if (!canStartTask) {
         log.warn(`实例 ${targetInstance.name} 无法启动：未连接且没有可用的控制器或资源配置`);
@@ -560,7 +570,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
         }
 
         // 查询后端真实连接状态，纠正前端可能过时的缓存
-        if (isTargetConnected && !needsReconnect) {
+        if (isTargetConnected && !needsReconnect && !shouldUseDummyController) {
           const backendState = await maaService.getInstanceState(targetId);
           if (!backendState || backendState.connectionStatus !== 'Connected') {
             log.warn(
@@ -572,8 +582,8 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
         }
 
         // 如果未连接（或需要重连），尝试自动连接
-        if ((!isTargetConnected || needsReconnect) && controller) {
-          const controllerType = controller.type;
+        if (!isTargetConnected || needsReconnect || shouldUseDummyController) {
+          const controllerType = controller?.type;
 
           await ensureMaaInitialized();
           await maaService.createInstance(targetId).catch((err) => {
@@ -584,7 +594,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
           let deviceName = '';
           let targetType: 'device' | 'window' = 'device';
 
-          if (hasSavedDevice && savedDevice) {
+          if (canUseSavedDevice && savedDevice && controllerType) {
             // 有保存的设备配置，按名称精确匹配
             log.info(`实例 ${targetInstance.name}: 自动连接已保存的设备...`);
             onPhaseChange?.('searching');
@@ -662,7 +672,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
               deviceName = savedDevice.playcoverAddress;
               targetType = 'device';
             }
-          } else {
+          } else if (!shouldUseDummyController && controllerType) {
             // 没有保存的设备配置，自动搜索并连接第一个结果
             log.info(`实例 ${targetInstance.name}: 自动搜索设备并连接...`);
             onPhaseChange?.('searching');
@@ -771,6 +781,21 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
               });
               return false;
             }
+          }
+
+          if (!shouldUseDummyController && !config) {
+            log.warn(`实例 ${targetInstance.name}: 无法构建控制器配置`);
+            return false;
+          }
+
+          if (shouldUseDummyController) {
+            config = {
+              type: 'Dummy',
+              display_short_side: controller?.display_short_side,
+            };
+            deviceName = 'MXU Dummy Controller';
+            targetType = 'device';
+            log.info(`实例 ${targetInstance.name}: 使用 Dummy Controller 执行非视觉任务`);
           }
 
           if (!config) {
@@ -980,6 +1005,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
         // 构建可运行任务列表（排除无法找到定义的任务）
         // 这确保了 taskConfigs、taskIds 和 runnableTasks 的索引对齐
         interface RunnableTask {
+          taskName: string;
           selectedTask: (typeof compatibleTasks)[0];
           taskDef: NonNullable<ReturnType<typeof getMxuSpecialTask>>['taskDef'] | TaskItem;
           specialTask: ReturnType<typeof getMxuSpecialTask>;
@@ -994,7 +1020,12 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
             log.warn(`跳过任务 ${selectedTask.taskName}: 未找到任务定义`);
             continue;
           }
-          runnableTasks.push({ selectedTask, taskDef, specialTask });
+          runnableTasks.push({
+            taskName: selectedTask.taskName,
+            selectedTask,
+            taskDef,
+            specialTask,
+          });
         }
 
         if (runnableTasks.length === 0) {
@@ -1002,13 +1033,19 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
           return false;
         }
 
-        log.info(`实例 ${targetInstance.name}: 开始执行任务, 数量:`, runnableTasks.length);
+        const { leading, middle, trailing } = splitTasksIntoThreeSegments(runnableTasks);
+        const primaryBatch = [...leading, ...middle];
+        const hasTrailingBatch = trailing.length > 0;
 
-        // 构建任务配置列表，同时预注册 entry -> taskName 映射（解决时序问题）
-        const taskConfigs: TaskConfig[] = runnableTasks.map(
-          ({ selectedTask, taskDef, specialTask }) => {
-            // 预注册 entry -> taskName 映射，确保回调时能找到任务名
-            // MXU 特殊任务的 label 是 MXU i18n key（如 'specialTask.sleep.label'），需要用 t() 翻译
+        log.info(
+          `实例 ${targetInstance.name}: 开始执行任务, 数量: ${runnableTasks.length}, 分段: ${[
+            `primary:${primaryBatch.length}`,
+            `trailing:${trailing.length}`,
+          ].join(', ')}`,
+        );
+
+        const buildTaskConfigs = (batchTasks: RunnableTask[]): TaskConfig[] =>
+          batchTasks.map(({ selectedTask, taskDef, specialTask }) => {
             const taskDisplayName =
               selectedTask.customName ||
               (specialTask && taskDef.label
@@ -1022,14 +1059,60 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
               pipeline_override: generateTaskPipelineOverride(
                 selectedTask,
                 projectInterface,
-                controllerName,
-                resourceName,
+                currentControllerName,
+                currentResourceName,
               ),
-              // 传递 selectedTaskId，后端用于建立 maaTaskId -> selectedTaskId 映射
               selected_task_id: selectedTask.id,
             };
-          },
-        );
+          });
+
+        const runTaskBatch = async (
+          batchTasks: RunnableTask[],
+          resetState: boolean,
+          batchName: string,
+          connectDummyController: boolean = false,
+        ) => {
+          if (batchTasks.length === 0) {
+            return [] as number[];
+          }
+
+          if (connectDummyController) {
+            log.info(`实例 ${targetInstance.name}: ${batchName}段切换为 Dummy Controller`);
+            const dummyCtrlId = await maaService.connectController(targetId, {
+              type: 'Dummy',
+              display_short_side: undefined,
+            });
+            registerCtrlIdName(targetId, dummyCtrlId, 'MXU Dummy Controller', 'device');
+          }
+
+          const batchTaskIds = await maaService.startTasks(
+            targetId,
+            buildTaskConfigs(batchTasks),
+            agentConfigs,
+            basePath,
+            tcpCompatMode,
+            piEnvs,
+            resetState,
+          );
+
+          log.info(`实例 ${targetInstance.name}: ${batchName}任务已提交, task_ids:`, batchTaskIds);
+
+          batchTaskIds.forEach((maaTaskId, index) => {
+            const runnable = batchTasks[index];
+            if (runnable) {
+              const { selectedTask, taskDef, specialTask } = runnable;
+              const taskDisplayName =
+                selectedTask.customName ||
+                (specialTask && taskDef.label
+                  ? t(taskDef.label)
+                  : resolveI18nText(taskDef.label, translations)) ||
+                selectedTask.taskName;
+              registerTaskIdName(maaTaskId, taskDisplayName);
+            }
+          });
+
+          return batchTaskIds;
+        };
 
         // 准备 Agent 配置（支持单个或多个 Agent）
         const agentConfigs = normalizeAgentConfigs(projectInterface?.agent);
@@ -1061,34 +1144,22 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
         // 任务可能在 startTasks 返回前就瞬时结束，先启动全局回调缓存再提交。
         await startGlobalCallbackListener();
 
-        // 启动任务
-        const taskIds = await maaService.startTasks(
-          targetId,
-          taskConfigs,
-          agentConfigs,
-          basePath,
-          tcpCompatMode,
-          piEnvs,
-        );
+        const startedTaskIds: number[] = [];
 
-        log.info(`实例 ${targetInstance.name}: 任务已提交, task_ids:`, taskIds);
+        const primaryTaskIds = await runTaskBatch(primaryBatch, true, hasTrailingBatch ? '前段' : '任务');
+        startedTaskIds.push(...primaryTaskIds);
 
-        // 注册 task_id 与任务名的映射（用于日志显示），后端管理状态
-        taskIds.forEach((maaTaskId, index) => {
-          const runnable = runnableTasks[index];
-          if (runnable) {
-            const { selectedTask, taskDef, specialTask } = runnable;
-            // 注册 task_id 与任务名的映射（使用自定义名称或 label）
-            // MXU 特殊任务的 label 需要用 t() 翻译
-            const taskDisplayName =
-              selectedTask.customName ||
-              (specialTask && taskDef.label
-                ? t(taskDef.label)
-                : resolveI18nText(taskDef.label, translations)) ||
-              selectedTask.taskName;
-            registerTaskIdName(maaTaskId, taskDisplayName);
+        if (hasTrailingBatch && primaryTaskIds.length > 0) {
+          const primaryResult = await maaService.waitForTasks(targetId, primaryTaskIds);
+          if (!primaryResult.allDone || primaryResult.stopped) {
+            log.warn(`实例 ${targetInstance.name}: 前段任务未正常结束，跳过收尾特殊任务`);
+            return false;
           }
-        });
+          const trailingTaskIds = await runTaskBatch(trailing, false, '收尾', true);
+          startedTaskIds.push(...trailingTaskIds);
+        }
+
+        log.info(`实例 ${targetInstance.name}: 任务已提交, task_ids:`, startedTaskIds);
 
         // 开始任务时折叠所有任务
         collapseAllTasks(targetId, false);

@@ -36,6 +36,8 @@ export interface MxuSpecialTaskDefinition {
     | 'Power';
   /** 图标颜色 CSS 类 */
   iconColorClass: string;
+  /** 是否绕过截图/识别流程的非视觉任务 */
+  skipScreenshot: boolean;
 }
 
 // MXU_SLEEP 特殊任务常量（保留向后兼容）
@@ -541,6 +543,7 @@ export const MXU_SPECIAL_TASKS: Record<string, MxuSpecialTaskDefinition> = {
     },
     iconName: 'Timer',
     iconColorClass: 'text-warning/80',
+    skipScreenshot: true,
   },
   [MXU_WAITUNTIL_TASK_NAME]: {
     taskName: MXU_WAITUNTIL_TASK_NAME,
@@ -551,6 +554,7 @@ export const MXU_SPECIAL_TASKS: Record<string, MxuSpecialTaskDefinition> = {
     },
     iconName: 'Clock',
     iconColorClass: 'text-accent/80',
+    skipScreenshot: true,
   },
   [MXU_NOTIFY_TASK_NAME]: {
     taskName: MXU_NOTIFY_TASK_NAME,
@@ -561,6 +565,7 @@ export const MXU_SPECIAL_TASKS: Record<string, MxuSpecialTaskDefinition> = {
     },
     iconName: 'MessageSquare',
     iconColorClass: 'text-info/80',
+    skipScreenshot: true,
   },
   [MXU_LAUNCH_TASK_NAME]: {
     taskName: MXU_LAUNCH_TASK_NAME,
@@ -574,6 +579,7 @@ export const MXU_SPECIAL_TASKS: Record<string, MxuSpecialTaskDefinition> = {
     },
     iconName: 'Play',
     iconColorClass: 'text-success/80',
+    skipScreenshot: true,
   },
   [MXU_KILLPROC_TASK_NAME]: {
     taskName: MXU_KILLPROC_TASK_NAME,
@@ -585,6 +591,7 @@ export const MXU_SPECIAL_TASKS: Record<string, MxuSpecialTaskDefinition> = {
     },
     iconName: 'XCircle',
     iconColorClass: 'text-error/80',
+    skipScreenshot: true,
   },
   [MXU_POWER_TASK_NAME]: {
     taskName: MXU_POWER_TASK_NAME,
@@ -595,6 +602,7 @@ export const MXU_SPECIAL_TASKS: Record<string, MxuSpecialTaskDefinition> = {
     },
     iconName: 'Power',
     iconColorClass: 'text-warning/80',
+    skipScreenshot: true,
   },
   [MXU_WEBHOOK_TASK_NAME]: {
     taskName: MXU_WEBHOOK_TASK_NAME,
@@ -605,6 +613,7 @@ export const MXU_SPECIAL_TASKS: Record<string, MxuSpecialTaskDefinition> = {
     },
     iconName: 'Bell',
     iconColorClass: 'text-accent/80',
+    skipScreenshot: true,
   },
 };
 
@@ -666,4 +675,12 @@ export function findMxuOptionByKey(optionKey: string): OptionDefinition | undefi
  */
 export function getAllMxuSpecialTasks(): MxuSpecialTaskDefinition[] {
   return Object.values(MXU_SPECIAL_TASKS);
+}
+
+/**
+ * 判断是否应跳过截图/识别流程
+ * @param taskName 任务名称
+ */
+export function shouldSkipMxuScreenshot(taskName: string): boolean {
+  return MXU_SPECIAL_TASKS[taskName]?.skipScreenshot ?? false;
 }

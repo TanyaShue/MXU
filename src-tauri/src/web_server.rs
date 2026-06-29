@@ -902,6 +902,8 @@ struct StartTasksRequest {
     tcp_compat_mode: Option<bool>,
     #[serde(default)]
     pi_envs: Option<std::collections::HashMap<String, String>>,
+    #[serde(default)]
+    reset_state: Option<bool>,
 }
 
 /// POST /api/maa/instances/:id/tasks/start
@@ -936,6 +938,7 @@ async fn handle_start_tasks(
         cwd,
         body.tcp_compat_mode.unwrap_or(false),
         body.pi_envs,
+        body.reset_state.unwrap_or(true),
     )
     .await
     {

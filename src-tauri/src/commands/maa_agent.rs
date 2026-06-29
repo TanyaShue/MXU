@@ -496,6 +496,7 @@ pub async fn start_tasks_impl(
     cwd: String,
     tcp_compat_mode: bool,
     pi_envs: Option<HashMap<String, String>>,
+    reset_state: bool,
 ) -> Result<Vec<i64>, String> {
     info!("start_tasks_impl called");
 
@@ -700,19 +701,30 @@ pub async fn start_tasks_impl(
         task_ids.len()
     );
 
-    // 初始化后端 TaskRunState（单一真相来源）并缓存 task_ids
-    debug!("[start_tasks] Initializing TaskRunState...");
+    // 初始化/追加后端 TaskRunState（单一真相来源）并缓存 task_ids
+    debug!(
+        "[start_tasks] Updating TaskRunState (reset_state={})...",
+        reset_state
+    );
     {
         let mut instances = maa_state.instances.lock().map_err(|e| e.to_string())?;
         if let Some(instance) = instances.get_mut(&instance_id) {
-            instance.task_ids = task_ids.clone();
+            if reset_state {
+                // 首批：重置任务运行状态
+                instance.task_ids = task_ids.clone();
+                let state = &mut instance.task_run_state;
+                state.statuses.clear();
+                state.mappings.clear();
+                state.pending_task_ids = task_ids.clone();
+                state.current_task_index = 0;
+            } else {
+                // 追加批次（分段运行）：保留已完成状态，仅追加新任务
+                instance.task_ids.extend(task_ids.iter().copied());
+                let state = &mut instance.task_run_state;
+                state.pending_task_ids.extend(task_ids.iter().copied());
+            }
 
-            // 重置任务运行状态
             let state = &mut instance.task_run_state;
-            state.statuses.clear();
-            state.mappings.clear();
-            state.pending_task_ids = task_ids.clone();
-            state.current_task_index = 0;
             state.overall_status = Some("Running".to_string());
 
             // 建立 maaTaskId -> selectedTaskId 映射，并将有映射的任务初始化为 "pending"
@@ -724,7 +736,7 @@ pub async fn start_tasks_impl(
             }
         }
     }
-    debug!("[start_tasks] TaskRunState initialized");
+    debug!("[start_tasks] TaskRunState updated");
 
     info!(
         "[start_tasks] start_tasks_impl completed successfully, returning {} task_ids",
@@ -748,6 +760,7 @@ pub async fn maa_start_tasks(
     cwd: String,
     tcp_compat_mode: bool,
     pi_envs: Option<HashMap<String, String>>,
+    reset_state: Option<bool>,
 ) -> Result<Vec<i64>, String> {
     start_tasks_impl(
         app,
@@ -758,6 +771,7 @@ pub async fn maa_start_tasks(
         cwd,
         tcp_compat_mode,
         pi_envs,
+        reset_state.unwrap_or(true),
     )
     .await
 }
