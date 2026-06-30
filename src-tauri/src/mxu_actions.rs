@@ -728,8 +728,8 @@ fn execute_power_restart() -> bool {
 fn execute_power_screenoff() -> bool {
     #[cfg(windows)]
     {
-        use winsafe::msg::WmSysCommand;
         use winsafe::co::SC;
+        use winsafe::msg::WmSysCommand;
         use winsafe::{HWND, POINT};
         unsafe {
             // NOTE: POINT::from(2) is equal to LPARAM(2)

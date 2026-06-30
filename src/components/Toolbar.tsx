@@ -318,7 +318,9 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
           savedDevice.wlrSocketPath ||
           savedDevice.playcoverAddress),
       );
-      const hasVisualTasks = compatibleTasks.some((task) => !shouldSkipMxuScreenshot(task.taskName));
+      const hasVisualTasks = compatibleTasks.some(
+        (task) => !shouldSkipMxuScreenshot(task.taskName),
+      );
       const shouldUseDummyController = !hasVisualTasks;
 
       if (shouldUseDummyController) {
@@ -1146,7 +1148,11 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
 
         const startedTaskIds: number[] = [];
 
-        const primaryTaskIds = await runTaskBatch(primaryBatch, true, hasTrailingBatch ? '前段' : '任务');
+        const primaryTaskIds = await runTaskBatch(
+          primaryBatch,
+          true,
+          hasTrailingBatch ? '前段' : '任务',
+        );
         startedTaskIds.push(...primaryTaskIds);
 
         if (hasTrailingBatch && primaryTaskIds.length > 0) {

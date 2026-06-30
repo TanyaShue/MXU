@@ -1,5 +1,5 @@
-import {useCallback, useEffect, useRef, useState} from 'react';
-import {useTranslation} from 'react-i18next';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   AlertCircle,
   AppWindowMac,
@@ -14,12 +14,12 @@ import {
   Settings2,
 } from 'lucide-react';
 
-import {useAppStore} from '@/stores/appStore';
-import {defaultAddTaskPanelHeight, defaultWindowSize} from '@/types/config';
-import {isTauri} from '@/utils/paths';
-import {SwitchButton} from '@/components/FormControls';
-import {DesktopOnlyWrapper} from '@/components/ui/DesktopOnlyWrapper';
-import {FrameRateSelector} from '../FrameRateSelector';
+import { useAppStore } from '@/stores/appStore';
+import { defaultAddTaskPanelHeight, defaultWindowSize } from '@/types/config';
+import { isTauri } from '@/utils/paths';
+import { SwitchButton } from '@/components/FormControls';
+import { DesktopOnlyWrapper } from '@/components/ui/DesktopOnlyWrapper';
+import { FrameRateSelector } from '../FrameRateSelector';
 
 export function GeneralSection() {
   const { t } = useTranslation();
@@ -41,7 +41,7 @@ export function GeneralSection() {
     autoStartRemovedInstanceName,
     autoClearLogsOnLaunch,
     setAutoClearLogsOnLaunch,
-    projectInterface
+    projectInterface,
   } = useAppStore();
 
   // 开机自启动状态（直接从 Tauri 插件查询，不走 store）
@@ -60,7 +60,7 @@ export function GeneralSection() {
         .then((os) => {
           isWindowsRef.current = os === 'windows';
           if (isWindowsRef.current) {
-            tauriInvoke<boolean>('autostart_is_enabled', {suffix: projectInterface?.name})
+            tauriInvoke<boolean>('autostart_is_enabled', { suffix: projectInterface?.name })
               .then(setAutoStartEnabled)
               .catch(() => {});
           } else {
@@ -93,8 +93,9 @@ export function GeneralSection() {
     try {
       if (isWindowsRef.current) {
         const { invoke } = await import('@tauri-apps/api/core');
-        await invoke(enabled ? 'autostart_enable' : 'autostart_disable',
-            {suffix: projectInterface?.name});
+        await invoke(enabled ? 'autostart_enable' : 'autostart_disable', {
+          suffix: projectInterface?.name,
+        });
       } else {
         const { enable, disable } = await import('@tauri-apps/plugin-autostart');
         if (enabled) {

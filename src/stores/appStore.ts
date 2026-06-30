@@ -1,6 +1,6 @@
-import i18n, {getInterfaceLangKey, setLanguage as setI18nLanguage} from '@/i18n';
-import {saveConfig} from '@/services/configService';
-import {maaService} from '@/services/maaService';
+import i18n, { getInterfaceLangKey, setLanguage as setI18nLanguage } from '@/i18n';
+import { saveConfig } from '@/services/configService';
+import { maaService } from '@/services/maaService';
 import {
   type AccentColor,
   applyTheme,
@@ -10,7 +10,7 @@ import {
   resolveThemeMode,
   unregisterCustomAccent,
 } from '@/themes';
-import type {LegacyActionConfig, MxuConfig, RecentlyClosedInstance} from '@/types/config';
+import type { LegacyActionConfig, MxuConfig, RecentlyClosedInstance } from '@/types/config';
 import {
   clampAddTaskPanelHeight,
   DEFAULT_MAX_LOGS_PER_INSTANCE,
@@ -29,15 +29,15 @@ import type {
   SchedulePolicy,
   SelectedTask,
 } from '@/types/interface';
-import type {ConnectionStatus, TaskStatus} from '@/types/maa';
-import {getMxuSpecialTask, isMxuSpecialTask, MXU_SPECIAL_TASKS} from '@/types/specialTasks';
-import {decryptCdk, encryptCdk} from '@/utils/cdkCrypto';
-import {loggers} from '@/utils/logger';
-import {findSwitchCase} from '@/utils/optionHelpers';
-import {create} from 'zustand';
-import {subscribeWithSelector} from 'zustand/middleware';
+import type { ConnectionStatus, TaskStatus } from '@/types/maa';
+import { getMxuSpecialTask, isMxuSpecialTask, MXU_SPECIAL_TASKS } from '@/types/specialTasks';
+import { decryptCdk, encryptCdk } from '@/utils/cdkCrypto';
+import { loggers } from '@/utils/logger';
+import { findSwitchCase } from '@/utils/optionHelpers';
+import { create } from 'zustand';
+import { subscribeWithSelector } from 'zustand/middleware';
 
-import {clearLogsOnBackend, logToStdout, pushLogToBackend} from '@/utils/logStdout';
+import { clearLogsOnBackend, logToStdout, pushLogToBackend } from '@/utils/logStdout';
 import {
   cacheBackendAppearance,
   cacheBackendLayout,
@@ -48,7 +48,7 @@ import {
   patchWebUIAppearance,
   patchWebUILayout,
 } from '@/services/appearanceStorage';
-import {isTauri} from '@/utils/paths';
+import { isTauri } from '@/utils/paths';
 import {
   convertPresetOptionValue,
   generateId,
@@ -57,9 +57,9 @@ import {
   isTaskCompatible,
   sanitizeOptionValues,
 } from './helpers';
-import {persistRuntimeLogs} from '@/utils/runtimeLogPersistence';
+import { persistRuntimeLogs } from '@/utils/runtimeLogPersistence';
 // 从独立模块导入类型和辅助函数
-import type {AppState, LogEntry, TaskRunStatus} from './types';
+import type { AppState, LogEntry, TaskRunStatus } from './types';
 
 /**
  * 规范化定时策略：仅保留 times（分钟精度）字段，丢弃旧版整点 hours 字段。
@@ -1689,7 +1689,7 @@ export const useAppStore = create<AppState>()(
 
     // Web 服务器启用开关（默认 true，需重启生效）
     webServerEnabled: true,
-    setWebServerEnabled: (enabled) => set({webServerEnabled: enabled}),
+    setWebServerEnabled: (enabled) => set({ webServerEnabled: enabled }),
 
     // Web 服务器端口（默认 12701，需重启生效）
     webServerPort: 12701,

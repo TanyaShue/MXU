@@ -624,8 +624,7 @@ fn export_logs_blocking(
         let mut central_dir_reserve: u64 = ZIP_EOCD_BYTES;
 
         while let Some(entry) = iter.peek() {
-            let entry_cd_bytes =
-                ZIP_CENTRAL_DIR_FIXED_BYTES + entry.archive_name.len() as u64;
+            let entry_cd_bytes = ZIP_CENTRAL_DIR_FIXED_BYTES + entry.archive_name.len() as u64;
             let file_size = entry
                 .source_path
                 .metadata()
@@ -648,8 +647,7 @@ fn export_logs_blocking(
             {
                 match pre_compress_measure(&entry.source_path) {
                     Ok(exact_delta) => {
-                        let exact_delta =
-                            exact_delta.saturating_add(ZIP_LOCAL_HEADER_OVERHEAD);
+                        let exact_delta = exact_delta.saturating_add(ZIP_LOCAL_HEADER_OVERHEAD);
                         if current_total
                             .saturating_add(exact_delta)
                             .saturating_add(entry_cd_bytes)
@@ -666,14 +664,8 @@ fn export_logs_blocking(
             }
 
             let entry = iter.next().expect("peek 已确认存在");
-            if add_file_to_zip(
-                &mut zip,
-                &entry.source_path,
-                &entry.archive_name,
-                options,
-            ) {
-                central_dir_reserve =
-                    central_dir_reserve.saturating_add(entry_cd_bytes);
+            if add_file_to_zip(&mut zip, &entry.source_path, &entry.archive_name, options) {
+                central_dir_reserve = central_dir_reserve.saturating_add(entry_cd_bytes);
                 wrote_any = true;
                 volume_file_count += 1;
                 total_files_written += 1;

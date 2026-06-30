@@ -20,7 +20,7 @@ export function getApiBase(): string {
   if (window.location.host) {
     return '/api';
   }
-  
+
   // Fallback：直连后端
   const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
   const hostname = window.location.hostname || '127.0.0.1';

@@ -27,10 +27,7 @@ export function splitTasksIntoThreeSegments<T extends { taskName: string }>(
   }
 
   let trailingStart = tasks.length;
-  while (
-    trailingStart > leadingEnd &&
-    shouldSkipMxuScreenshot(tasks[trailingStart - 1].taskName)
-  ) {
+  while (trailingStart > leadingEnd && shouldSkipMxuScreenshot(tasks[trailingStart - 1].taskName)) {
     trailingStart -= 1;
   }
 

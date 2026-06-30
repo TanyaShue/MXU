@@ -1,7 +1,7 @@
 // MXU 配置文件结构 (mxu.json)
 
-import type {ActionConfig, OptionValue} from './interface';
-import type {AccentColor, CustomAccent} from '@/themes/types';
+import type { ActionConfig, OptionValue } from './interface';
+import type { AccentColor, CustomAccent } from '@/themes/types';
 
 export const DEFAULT_MAX_LOGS_PER_INSTANCE = 500;
 

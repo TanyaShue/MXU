@@ -61,7 +61,9 @@ pub fn init_cli() -> &'static Cli {
             let _ = std::io::stdout().flush();
 
             #[cfg(windows)]
-            if attach.is_ok() { let _ = winsafe::FreeConsole(); };
+            if attach.is_ok() {
+                let _ = winsafe::FreeConsole();
+            };
 
             std::process::exit(0);
         }
