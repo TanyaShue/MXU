@@ -2,6 +2,7 @@
 // API 文档: https://github.com/MirrorChyan/docs
 
 import type { DownloadProgress, UpdateInfo } from '@/stores/appStore';
+import { useAppStore } from '@/stores/appStore';
 import type { ProxySettings, UpdateChannel } from '@/types/config';
 import { loggers } from '@/utils/logger';
 import { getCacheDir, joinPath } from '@/utils/paths';
@@ -127,8 +128,13 @@ interface GitHubAsset {
   browser_download_url: string;
 }
 
-// 获取操作系统类型
+// 获取操作系统类型（以后端真实 OS 为准；后端未知时回退到浏览器平台，仅纯前端 dev 预览）
 function getOS(): string {
+  const os = useAppStore.getState().backendOS;
+  if (os === 'windows') return 'windows';
+  if (os === 'macos') return 'darwin';
+  if (os === 'linux') return 'linux';
+  // 后端 OS 未知（纯前端 dev 预览，无后端）时回退到浏览器平台
   const platform = navigator.platform.toLowerCase();
   if (platform.includes('win')) return 'windows';
   if (platform.includes('mac')) return 'darwin';
@@ -139,28 +145,32 @@ function getOS(): string {
 let cachedArchPromise: Promise<string> | null = null;
 
 /**
- * 获取系统架构（优先使用 Tauri 后端的真实值）
+ * 获取系统架构（优先使用后端真实值）
  *
  * 后端返回值通常是 `x86_64` / `aarch64`，这里统一映射为更新逻辑使用的
  * `amd64` / `arm64`，避免 Apple Silicon 被误判为 x86。
+ *
+ * 优先读 store 中已缓存的后端架构（interfaceLoader 在 Tauri/HTTP 两条路径均会填充，
+ * 使 WebUI 远程也能拿到后端真实架构）；store 尚未填充时回退到直接 invoke（仅 Tauri 可用），
+ * 再失败则回退 amd64。
  */
 async function getArch(): Promise<string> {
   if (!cachedArchPromise) {
-    cachedArchPromise = invoke<string>('get_arch')
-      .then((arch) => {
-        const normalized = arch.toLowerCase();
-        if (normalized === 'x86_64' || normalized === 'x64' || normalized === 'amd64') {
-          return 'amd64';
-        }
-        if (normalized === 'aarch64' || normalized === 'arm64') {
-          return 'arm64';
-        }
-        return normalized;
-      })
-      .catch((error) => {
-        log.warn('获取系统架构失败，回退到 amd64:', error);
+    cachedArchPromise = (async () => {
+      let raw = useAppStore.getState().backendArch;
+      if (!raw) raw = await invoke<string>('get_arch');
+      const normalized = raw.toLowerCase();
+      if (normalized === 'x86_64' || normalized === 'x64' || normalized === 'amd64') {
         return 'amd64';
-      });
+      }
+      if (normalized === 'aarch64' || normalized === 'arm64') {
+        return 'arm64';
+      }
+      return normalized;
+    })().catch((error) => {
+      log.warn('获取系统架构失败，回退到 amd64:', error);
+      return 'amd64';
+    });
   }
 
   return cachedArchPromise;

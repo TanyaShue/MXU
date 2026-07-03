@@ -158,6 +158,7 @@ export function TabBar() {
   };
 
   const langKey = getInterfaceLangKey(language);
+  const topBarLocked = instances.some((inst) => inst.isRunning);
 
   // 右键菜单处理
   const handleTabContextMenu = useCallback(
@@ -371,7 +372,14 @@ export function TabBar() {
   return (
     <div className="flex items-center h-10 bg-bg-secondary border-b border-border select-none">
       {/* 标签页区域 */}
-      <div id="tab-bar-area" className="flex-1 flex items-center h-full overflow-x-auto">
+      <div
+        id="tab-bar-area"
+        className={clsx(
+          'flex-1 flex items-center h-full overflow-x-auto',
+          topBarLocked && 'pointer-events-none',
+        )}
+        aria-disabled={topBarLocked}
+      >
         {instances.map((instance, index) => {
           const isAnimatingIn = animatingTabIds.includes(instance.id);
           const isClosing = closingTabIds.includes(instance.id);
@@ -384,7 +392,7 @@ export function TabBar() {
                 else tabRefs.current.delete(instance.id);
               }}
               onMouseDown={(e) => handleMouseDown(e, index)}
-              onClick={() => !isClosing && setActiveInstance(instance.id)}
+              onClick={() => !topBarLocked && !isClosing && setActiveInstance(instance.id)}
               onDoubleClick={(e) => handleDoubleClick(e, instance.id, instance.name)}
               onContextMenu={(e) => handleTabContextMenu(e, instance.id, instance.name)}
               onAnimationEnd={() => {
@@ -394,6 +402,7 @@ export function TabBar() {
               }}
               className={clsx(
                 'group flex items-center gap-1 h-full px-2 cursor-pointer border-r border-border min-w-[120px] max-w-[200px]',
+                topBarLocked && 'cursor-not-allowed opacity-70',
                 instance.id === activeInstanceId
                   ? 'bg-bg-primary text-accent border-b-2 border-b-accent'
                   : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover border-b-2 border-b-transparent',
@@ -494,7 +503,11 @@ export function TabBar() {
         {/* 新建标签按钮 */}
         <button
           onClick={handleNewTab}
-          className="flex items-center justify-center w-8 h-full hover:bg-bg-hover transition-colors"
+          disabled={topBarLocked}
+          className={clsx(
+            'flex items-center justify-center w-8 h-full transition-colors',
+            topBarLocked ? 'cursor-not-allowed opacity-50' : 'hover:bg-bg-hover',
+          )}
           title={t('titleBar.newTab')}
         >
           <Plus className="w-4 h-4 text-text-secondary" />
@@ -512,10 +525,15 @@ export function TabBar() {
         {(updateInfo?.hasUpdate || updateInfo?.errorCode || downloadStatus === 'downloading') && (
           <button
             ref={bellButtonRef}
-            onClick={() => setShowUpdatePanel(!showUpdatePanel)}
+            onClick={() => !topBarLocked && setShowUpdatePanel(!showUpdatePanel)}
+            disabled={topBarLocked}
             className={clsx(
               'relative p-2 rounded-md transition-colors',
-              showUpdatePanel ? 'bg-accent/10' : 'hover:bg-bg-hover',
+              topBarLocked
+                ? 'cursor-not-allowed opacity-50'
+                : showUpdatePanel
+                  ? 'bg-accent/10'
+                  : 'hover:bg-bg-hover',
             )}
             title={
               updateInfo?.hasUpdate
@@ -548,12 +566,15 @@ export function TabBar() {
         {recentlyClosed.length > 0 && (
           <button
             ref={recentlyClosedButtonRef}
-            onClick={() => setShowRecentlyClosedPanel(!showRecentlyClosedPanel)}
+            onClick={() => !topBarLocked && setShowRecentlyClosedPanel(!showRecentlyClosedPanel)}
+            disabled={topBarLocked}
             className={clsx(
               'p-2 rounded-md transition-colors',
-              showRecentlyClosedPanel
-                ? 'bg-accent/10 text-accent'
-                : 'hover:bg-bg-hover text-text-secondary',
+              topBarLocked
+                ? 'cursor-not-allowed opacity-50'
+                : showRecentlyClosedPanel
+                  ? 'bg-accent/10 text-accent'
+                  : 'hover:bg-bg-hover text-text-secondary',
             )}
             title={t('recentlyClosed.title')}
           >
@@ -561,18 +582,27 @@ export function TabBar() {
           </button>
         )}
         <button
-          onClick={toggleDashboardView}
+          onClick={() => !topBarLocked && toggleDashboardView()}
+          disabled={topBarLocked}
           className={clsx(
             'p-2 rounded-md transition-colors',
-            dashboardView ? 'bg-accent/10 text-accent' : 'hover:bg-bg-hover text-text-secondary',
+            topBarLocked
+              ? 'cursor-not-allowed opacity-50'
+              : dashboardView
+                ? 'bg-accent/10 text-accent'
+                : 'hover:bg-bg-hover text-text-secondary',
           )}
           title={t('dashboard.toggle')}
         >
           <LayoutGrid className="w-4 h-4" />
         </button>
         <button
-          onClick={toggleTheme}
-          className="p-2 rounded-md hover:bg-bg-hover transition-colors"
+          onClick={() => !topBarLocked && toggleTheme()}
+          disabled={topBarLocked}
+          className={clsx(
+            'p-2 rounded-md transition-colors',
+            topBarLocked ? 'cursor-not-allowed opacity-50' : 'hover:bg-bg-hover',
+          )}
           title={
             resolveThemeMode(theme) === 'light' ? t('settings.themeDark') : t('settings.themeLight')
           }
@@ -584,8 +614,12 @@ export function TabBar() {
           )}
         </button>
         <button
-          onClick={() => setCurrentPage('settings')}
-          className="p-2 rounded-md hover:bg-bg-hover transition-colors"
+          onClick={() => !topBarLocked && setCurrentPage('settings')}
+          disabled={topBarLocked}
+          className={clsx(
+            'p-2 rounded-md transition-colors',
+            topBarLocked ? 'cursor-not-allowed opacity-50' : 'hover:bg-bg-hover',
+          )}
           title={t('titleBar.settings')}
         >
           <Settings className="w-4 h-4 text-text-secondary" />
