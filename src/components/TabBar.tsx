@@ -30,7 +30,10 @@ import { getInterfaceLangKey } from '@/i18n';
 import { exportFileWithToast, exportWithToast } from '@/utils/tabExportImport';
 import clsx from 'clsx';
 
-type CloseConfirmData = { type: 'single'; ids: string[]; name: string } | { type: 'multi'; ids: string[] } | null;
+type CloseConfirmData =
+  | { type: 'single'; ids: string[]; name: string }
+  | { type: 'multi'; ids: string[] }
+  | null;
 
 const LazyUpdatePanel = lazy(async () => {
   const module = await import('./UpdatePanel');
@@ -128,7 +131,7 @@ export function TabBar() {
     if (closeConfirm) {
       closeConfirm.ids.forEach((id) => {
         startTabCloseAnimation(id);
-      })
+      });
       setCloseConfirm(null);
     }
   };
@@ -290,8 +293,8 @@ export function TabBar() {
           disabled: instances.length <= 1,
           onClick: () => {
             const instanceIdsWithoutCurrent = instances
-                .map((inst) => inst.id)
-                .filter((id) => id !== instanceId);
+              .map((inst) => inst.id)
+              .filter((id) => id !== instanceId);
             requestCloseTabs(instanceIdsWithoutCurrent);
           },
         },
@@ -301,9 +304,7 @@ export function TabBar() {
           icon: PanelRightClose,
           disabled: instanceIndex >= instances.length - 1,
           onClick: () => {
-            const rightInstanceIds = instances
-                .slice(instanceIndex + 1)
-                .map((inst) => inst.id);
+            const rightInstanceIds = instances.slice(instanceIndex + 1).map((inst) => inst.id);
             requestCloseTabs(rightInstanceIds);
           },
         },
