@@ -24,6 +24,11 @@ export interface ProjectInterface {
   option?: Record<string, OptionDefinition>;
   /** v2.3.0: 全局选项配置，参与到所有任务的 pipeline override 中 */
   global_option?: string[];
+  /**
+   * MXU 扩展：任务设置页的 UI 元数据
+   * 仅描述如何展示设置区域，不定义 option 本身；实际可编辑项仍复用 `option`
+   */
+  setting?: InterfaceSettingSection[];
   /** v2.2.0: 导入其他 PI 文件的路径数组 */
   import?: string[];
   /** v2.3.0: 预设配置 */
@@ -66,6 +71,16 @@ export function normalizePretaskConfigs(
 ): PretaskItem[] | undefined {
   if (!pretask) return undefined;
   return Array.isArray(pretask) ? pretask : [pretask];
+}
+
+/** MXU 扩展：任务设置页 section 定义 */
+export interface InterfaceSettingSection {
+  name: string;
+  label?: string;
+  description?: string;
+  icon?: string;
+  default_expand?: boolean;
+  option?: string[];
 }
 
 /** v2.4.0: 任务分组声明 */
@@ -170,7 +185,7 @@ export interface TaskItem {
   option?: string[];
 }
 
-export type OptionType = 'select' | 'checkbox' | 'input' | 'switch';
+export type OptionType = 'select' | 'checkbox' | 'input' | 'switch' | 'hotkey';
 
 export interface CaseItem {
   name: string;
@@ -244,7 +259,19 @@ export interface InputOption {
   pipeline_override?: Record<string, unknown>;
 }
 
-export type OptionDefinition = SelectOption | CheckboxOption | SwitchOption | InputOption;
+export interface HotkeyOption {
+  type: 'hotkey';
+  label?: string;
+  description?: string;
+  icon?: string;
+  controller?: string[];
+  resource?: string[];
+  /** 热键项，支持单键或组合键捕获 */
+  hotkeys: InputItem[];
+  pipeline_override?: Record<string, unknown>;
+}
+
+export type OptionDefinition = SelectOption | CheckboxOption | SwitchOption | InputOption | HotkeyOption;
 
 // 运行时状态类型
 export interface SelectedTask {
@@ -271,6 +298,10 @@ export type OptionValue =
     }
   | {
       type: 'input';
+      values: Record<string, string>;
+    }
+  | {
+      type: 'hotkey';
       values: Record<string, string>;
     };
 

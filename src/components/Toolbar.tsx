@@ -1125,6 +1125,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
                 projectInterface,
                 currentControllerName,
                 currentResourceName,
+                useAppStore.getState().globalOptionValues,
               ),
               selected_task_id: selectedTask.id,
             };

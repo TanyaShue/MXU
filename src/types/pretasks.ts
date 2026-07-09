@@ -94,7 +94,7 @@ export function resolveCompatTaskDef(
  * 按协议将 pretask 的 option 当前取值序列化为 { [optionKey]: OptionValue } 对象。
  * - select / switch -> case.name 字符串
  * - checkbox -> case.name 字符串数组
- * - input -> { 输入名: 值 }
+ * - input / hotkey -> { 输入名: 值 }
  * 递归包含因选择而激活的嵌套 option；跳过不满足 controller/resource 限制的 option。
  */
 function collectPretaskOptionValues(
@@ -136,6 +136,17 @@ function collectPretaskOptionValues(
     const values: Record<string, string> = {};
     if (optionDef.type === 'input') {
       for (const input of optionDef.inputs || []) {
+        values[input.name] = optionValue.values[input.name] ?? input.default ?? '';
+      }
+    }
+    result[optionKey] = values;
+    return;
+  }
+
+  if (optionValue.type === 'hotkey') {
+    const values: Record<string, string> = {};
+    if (optionDef.type === 'hotkey') {
+      for (const input of optionDef.hotkeys || []) {
         values[input.name] = optionValue.values[input.name] ?? input.default ?? '';
       }
     }

@@ -590,11 +590,15 @@ export const useAppStore = create<AppState>()(
         } else if (optionDef.type === 'checkbox') {
           const defaultCases = optionDef.default_case || [];
           optionValues[optionKey] = { type: 'checkbox', caseNames: [...defaultCases] };
-        } else {
-          // select 类型
-          const caseName =
-            (optionDef.default_case as string | undefined) || optionDef.cases?.[0]?.name || '';
+        } else if (optionDef.type === 'select') {
+          const caseName = (optionDef.default_case as string | undefined) || optionDef.cases?.[0]?.name || '';
           optionValues[optionKey] = { type: 'select', caseName };
+        } else if (optionDef.type === 'hotkey') {
+          const values: Record<string, string> = {};
+          for (const input of optionDef.hotkeys || []) {
+            values[input.name] = initialValues?.[input.name] ?? input.default ?? '';
+          }
+          optionValues[optionKey] = { type: 'hotkey', values };
         }
       }
 
@@ -727,6 +731,48 @@ export const useAppStore = create<AppState>()(
           };
         }),
       }));
+    },
+
+    globalOptionValues: {},
+
+    setGlobalOptionValue: (optionKey, value) => {
+      const pi = get().projectInterface;
+
+      set((state) => {
+        const newValues = { ...state.globalOptionValues, [optionKey]: value };
+
+        // 当选项值改变时，初始化新的嵌套选项（与 setTaskOptionValue 逻辑一致）
+        if (pi?.option) {
+          const optDef = pi.option[optionKey];
+          if (
+            optDef &&
+            (optDef.type === 'switch' || optDef.type === 'select' || !optDef.type) &&
+            'cases' in optDef
+          ) {
+            let selectedCase;
+            if (optDef.type === 'switch') {
+              const isChecked = value.type === 'switch' && value.value;
+              selectedCase = findSwitchCase(optDef.cases, isChecked);
+            } else {
+              const caseName = value.type === 'select' ? value.caseName : optDef.cases?.[0]?.name;
+              selectedCase = optDef.cases?.find((c) => c.name === caseName);
+            }
+
+            if (selectedCase?.option && selectedCase.option.length > 0) {
+              for (const nestedKey of selectedCase.option) {
+                if (!newValues[nestedKey]) {
+                  const nestedDef = pi.option[nestedKey];
+                  if (nestedDef) {
+                    Object.assign(newValues, initializeAllOptionValues([nestedKey], pi.option));
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        return { globalOptionValues: newValues };
+      });
     },
 
     selectAllTasks: (instanceId, enabled) =>
@@ -1281,6 +1327,18 @@ export const useAppStore = create<AppState>()(
         showAddTaskPanel: detectedNewTaskNames.length > 0,
         // v2.3.0: 恢复预设初始化标记
         presetInitialized: config.presetInitialized ?? false,
+        // 全局任务设置值：以 global_option 的默认值为基底，合并已保存值（保存值优先）
+        globalOptionValues: (() => {
+          const globalKeys = pi?.global_option;
+          if (!globalKeys || globalKeys.length === 0 || !pi?.option) {
+            return cleanOptionValues(config.globalOptionValues || {}, pi);
+          }
+          const defaults = initializeAllOptionValues(globalKeys, pi.option);
+          return {
+            ...defaults,
+            ...cleanOptionValues(config.globalOptionValues || {}, pi),
+          };
+        })(),
       });
 
       // 应用主题（包括强调色）
@@ -2163,6 +2221,7 @@ function generateConfig(): MxuConfig {
         customAccents: ba?.customAccents ?? state.customAccents,
       };
     })(),
+    globalOptionValues: state.globalOptionValues,
     recentlyClosed: state.recentlyClosed,
     interfaceTaskSnapshot: state.projectInterface?.task.map((t) => t.name) || [],
     newTaskNames: state.newTaskNames,
@@ -2198,6 +2257,7 @@ useAppStore.subscribe(
   (state) => ({
     instances: state.instances,
     activeInstanceId: state.activeInstanceId,
+    globalOptionValues: state.globalOptionValues,
     ...(!_isWebUI && {
       theme: state.theme,
       accentColor: state.accentColor,

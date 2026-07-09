@@ -50,6 +50,8 @@ export default {
     appearance: 'Appearance',
     hotkeys: 'Hotkeys',
     general: 'General',
+    taskSettings: 'Task Settings',
+    taskSettingsEmpty: 'No settings available to display',
     language: 'Language',
     backgroundImage: 'Background Image',
     backgroundOpacity: 'Background Opacity',
@@ -339,6 +341,8 @@ export default {
     noMatchingOptions: 'No matching options',
     incompatibleController: 'Not supported by current controller',
     incompatibleResource: 'Not supported by current resource',
+    hotkeyPlaceholder: 'Click to record shortcut',
+    hotkeyCapturing: 'Press keys...',
   },
 
   // Preset

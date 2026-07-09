@@ -42,6 +42,245 @@ const isOptionIncompatible = (
 /**
  * 递归处理选项的 pipeline_override，收集到数组中
  */
+const HOTKEY_KEY_MAP: Record<string, Record<string, number>> = {
+  Win32: {
+    BACKSPACE: 0x08,
+    TAB: 0x09,
+    ENTER: 0x0d,
+    SHIFT: 0x10,
+    CTRL: 0x11,
+    ALT: 0x12,
+    PAUSE: 0x13,
+    CAPSLOCK: 0x14,
+    ESC: 0x1b,
+    SPACE: 0x20,
+    PAGEUP: 0x21,
+    PAGEDOWN: 0x22,
+    END: 0x23,
+    HOME: 0x24,
+    LEFT: 0x25,
+    UP: 0x26,
+    RIGHT: 0x27,
+    DOWN: 0x28,
+    INSERT: 0x2d,
+    DELETE: 0x2e,
+    '0': 0x30,
+    '1': 0x31,
+    '2': 0x32,
+    '3': 0x33,
+    '4': 0x34,
+    '5': 0x35,
+    '6': 0x36,
+    '7': 0x37,
+    '8': 0x38,
+    '9': 0x39,
+    A: 0x41,
+    B: 0x42,
+    C: 0x43,
+    D: 0x44,
+    E: 0x45,
+    F: 0x46,
+    G: 0x47,
+    H: 0x48,
+    I: 0x49,
+    J: 0x4a,
+    K: 0x4b,
+    L: 0x4c,
+    M: 0x4d,
+    N: 0x4e,
+    O: 0x4f,
+    P: 0x50,
+    Q: 0x51,
+    R: 0x52,
+    S: 0x53,
+    T: 0x54,
+    U: 0x55,
+    V: 0x56,
+    W: 0x57,
+    X: 0x58,
+    Y: 0x59,
+    Z: 0x5a,
+    F1: 0x70,
+    F2: 0x71,
+    F3: 0x72,
+    F4: 0x73,
+    F5: 0x74,
+    F6: 0x75,
+    F7: 0x76,
+    F8: 0x77,
+    F9: 0x78,
+    F10: 0x79,
+    F11: 0x7a,
+    F12: 0x7b,
+  },
+  Adb: {
+    BACKSPACE: 67,
+    TAB: 61,
+    ENTER: 66,
+    SHIFT: 59,
+    CTRL: 113,
+    ALT: 57,
+    SPACE: 62,
+    ESC: 111,
+    DELETE: 112,
+    HOME: 3,
+    END: 123,
+    PAGEUP: 92,
+    PAGEDOWN: 93,
+    LEFT: 21,
+    RIGHT: 22,
+    UP: 19,
+    DOWN: 20,
+    '0': 7,
+    '1': 8,
+    '2': 9,
+    '3': 10,
+    '4': 11,
+    '5': 12,
+    '6': 13,
+    '7': 14,
+    '8': 15,
+    '9': 16,
+    A: 29,
+    B: 30,
+    C: 31,
+    D: 32,
+    E: 33,
+    F: 34,
+    G: 35,
+    H: 36,
+    I: 37,
+    J: 38,
+    K: 39,
+    L: 40,
+    M: 41,
+    N: 42,
+    O: 43,
+    P: 44,
+    Q: 45,
+    R: 46,
+    S: 47,
+    T: 48,
+    U: 49,
+    V: 50,
+    W: 51,
+    X: 52,
+    Y: 53,
+    Z: 54,
+    F1: 131,
+    F2: 132,
+    F3: 133,
+    F4: 134,
+    F5: 135,
+    F6: 136,
+    F7: 137,
+    F8: 138,
+    F9: 139,
+    F10: 140,
+    F11: 141,
+    F12: 142,
+  },
+  WlRoots: {
+    BACKSPACE: 14,
+    TAB: 15,
+    ENTER: 28,
+    SHIFT: 42,
+    CTRL: 29,
+    ALT: 56,
+    SPACE: 57,
+    ESC: 1,
+    DELETE: 111,
+    HOME: 102,
+    END: 107,
+    PAGEUP: 104,
+    PAGEDOWN: 109,
+    LEFT: 105,
+    RIGHT: 106,
+    UP: 103,
+    DOWN: 108,
+    '0': 11,
+    '1': 2,
+    '2': 3,
+    '3': 4,
+    '4': 5,
+    '5': 6,
+    '6': 7,
+    '7': 8,
+    '8': 9,
+    '9': 10,
+    A: 30,
+    B: 48,
+    C: 46,
+    D: 32,
+    E: 18,
+    F: 33,
+    G: 34,
+    H: 35,
+    I: 23,
+    J: 36,
+    K: 37,
+    L: 38,
+    M: 50,
+    N: 49,
+    O: 24,
+    P: 25,
+    Q: 16,
+    R: 19,
+    S: 31,
+    T: 20,
+    U: 22,
+    V: 47,
+    W: 17,
+    X: 45,
+    Y: 21,
+    Z: 44,
+    F1: 59,
+    F2: 60,
+    F3: 61,
+    F4: 62,
+    F5: 63,
+    F6: 64,
+    F7: 65,
+    F8: 66,
+    F9: 67,
+    F10: 68,
+    F11: 87,
+    F12: 88,
+  },
+};
+
+/**
+ * 将单个按键名（如 "A"、"F1"、"Ctrl"）转换为指定控制器类型的虚拟键码。
+ * 注意：这里按控制器 **类型**（Win32 / Adb / WlRoots）查表，而非控制器 name。
+ * 未知按键返回 null。
+ */
+const convertHotkeyKeyName = (keyName: string, controllerType?: string): number | null => {
+  const controllerMap = HOTKEY_KEY_MAP[controllerType || ''] || HOTKEY_KEY_MAP.Win32;
+  const normalized = keyName.trim().toUpperCase();
+  const keyCode = controllerMap[normalized];
+  if (keyCode === undefined) {
+    loggers.task.warn('未知热键按键，无法映射到虚拟键码', {
+      keyName,
+      controllerType: controllerType || '(fallback: Win32)',
+    });
+    return null;
+  }
+  return keyCode;
+};
+
+/**
+ * 将组合键字符串（如 "Ctrl+Shift+A"）拆分为主键与修饰键。
+ * 约定末位为主键，其余为修饰键（捕获时按 Ctrl/Alt/Shift 顺序排列）。
+ */
+const splitHotkeyCombo = (value: string): { primary: string; modifiers: string[] } => {
+  const parts = value
+    .split('+')
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (parts.length === 0) return { primary: '', modifiers: [] };
+  return { primary: parts[parts.length - 1], modifiers: parts.slice(0, -1) };
+};
+
 const collectOptionOverrides = (
   optionKey: string,
   optionValues: Record<string, OptionValue>,
@@ -49,6 +288,7 @@ const collectOptionOverrides = (
   allOptions: Record<string, OptionDefinition>,
   controllerName?: string,
   resourceName?: string,
+  controllerType?: string,
 ) => {
   const optionDef = allOptions[optionKey];
   if (!optionDef) return;
@@ -102,20 +342,47 @@ const collectOptionOverrides = (
           allOptions,
           controllerName,
           resourceName,
+          controllerType,
         );
       }
     }
   } else if (
-    optionValue.type === 'input' &&
+    (optionValue.type === 'input' || optionValue.type === 'hotkey') &&
     'pipeline_override' in optionDef &&
     optionDef.pipeline_override
   ) {
-    const inputDefs = optionDef.inputs || [];
+    const inputDefs =
+      optionDef.type === 'hotkey' ? optionDef.hotkeys || [] : optionDef.inputs || [];
     let overrideStr = JSON.stringify(optionDef.pipeline_override);
 
     for (const inputDef of inputDefs) {
       const inputName = inputDef.name;
       const inputVal = optionValue.values[inputName] ?? inputDef.default ?? '';
+
+      // 热键：拆分为主键 / 修饰键，统一转换为控制器类型对应的虚拟键码（int）
+      // 对应 ClickKey / KeyDown 等动作的 `key` 字段（要求 int，见流水线协议）
+      if (optionDef.type === 'hotkey') {
+        const { primary, modifiers } = splitHotkeyCombo(inputVal);
+        const resolveKeyCode = (name: string): string => {
+          const code = name ? convertHotkeyKeyName(name, controllerType) : null;
+          return code !== null ? String(code) : '';
+        };
+        const placeholderValues: Record<string, string> = {
+          [`{${inputName}}`]: resolveKeyCode(primary),
+          [`{${inputName}.primary}`]: resolveKeyCode(primary),
+          [`{${inputName}.modifier1}`]: resolveKeyCode(modifiers[0] ?? ''),
+          [`{${inputName}.modifier2}`]: resolveKeyCode(modifiers[1] ?? ''),
+        };
+        for (const [placeholder, keyCode] of Object.entries(placeholderValues)) {
+          const escapedPlaceholder = placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const intVal = keyCode || '0';
+          // 优先替换带引号的占位符（去掉引号，产出裸整数），再兜底替换未加引号写法
+          overrideStr = overrideStr.replace(new RegExp(`"${escapedPlaceholder}"`, 'g'), intVal);
+          overrideStr = overrideStr.replace(new RegExp(escapedPlaceholder, 'g'), intVal);
+        }
+        continue;
+      }
+
       const pipelineType = inputDef.pipeline_type || 'string';
       const placeholder = `{${inputName}}`;
       const escapedPlaceholder = placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -170,6 +437,7 @@ export const generateTaskPipelineOverride = (
   projectInterface: ProjectInterface | null,
   controllerName?: string,
   resourceName?: string,
+  globalOptionValues?: Record<string, OptionValue>,
 ): string => {
   // 处理 MXU 内置特殊任务
   if (isMxuSpecialTask(selectedTask.taskName)) {
@@ -177,6 +445,11 @@ export const generateTaskPipelineOverride = (
   }
 
   if (!projectInterface) return '[]';
+
+  // 热键键码按控制器 **类型**（Win32 / Adb / WlRoots）查表，这里先由 name 解析出 type
+  const controllerType = controllerName
+    ? projectInterface.controller.find((c) => c.name === controllerName)?.type
+    : undefined;
 
   const overrides: Record<string, unknown>[] = [];
   const taskDef = projectInterface.task.find((t) => t.name === selectedTask.taskName);
@@ -189,16 +462,17 @@ export const generateTaskPipelineOverride = (
 
   if (projectInterface.option) {
     // v2.3.0 覆盖顺序：global_option → resource.option → controller.option → task.option
-    // 1. 全局选项（优先级最低）
+    // 1. 全局选项（优先级最低）：取值来自全局设置 globalOptionValues（设置页统一编辑）
     if (projectInterface.global_option) {
       for (const optionKey of projectInterface.global_option) {
         collectOptionOverrides(
           optionKey,
-          selectedTask.optionValues,
+          globalOptionValues ?? {},
           overrides,
           projectInterface.option,
           controllerName,
           resourceName,
+          controllerType,
         );
       }
     }
@@ -215,6 +489,7 @@ export const generateTaskPipelineOverride = (
             projectInterface.option,
             controllerName,
             resourceName,
+            controllerType,
           );
         }
       }
@@ -232,6 +507,7 @@ export const generateTaskPipelineOverride = (
             projectInterface.option,
             controllerName,
             resourceName,
+            controllerType,
           );
         }
       }
@@ -247,6 +523,7 @@ export const generateTaskPipelineOverride = (
           projectInterface.option,
           controllerName,
           resourceName,
+          controllerType,
         );
       }
     }

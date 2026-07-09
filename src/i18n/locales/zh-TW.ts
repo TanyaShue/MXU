@@ -49,6 +49,8 @@ export default {
     appearance: '外觀',
     hotkeys: '快捷鍵',
     general: '一般',
+    taskSettings: '任務設定',
+    taskSettingsEmpty: '目前沒有可顯示的設定項',
     language: '語言',
     backgroundImage: '背景圖片',
     backgroundOpacity: '背景不透明度',
@@ -326,6 +328,8 @@ export default {
     noMatchingOptions: '無匹配選項',
     incompatibleController: '不支援目前控制器',
     incompatibleResource: '不支援目前資源包',
+    hotkeyPlaceholder: '點擊錄入快捷鍵',
+    hotkeyCapturing: '按下快捷鍵...',
   },
 
   // 預設設定

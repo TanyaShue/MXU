@@ -49,6 +49,8 @@ export default {
     appearance: '外観',
     hotkeys: 'ショートカットキー',
     general: '一般',
+    taskSettings: 'タスク設定',
+    taskSettingsEmpty: '表示できる設定項目がありません',
     language: '言語',
     backgroundImage: '背景画像',
     backgroundOpacity: '背景の不透明度',
@@ -333,6 +335,8 @@ export default {
     noMatchingOptions: '一致するオプションがありません',
     incompatibleController: '現在のコントローラーに対応していません',
     incompatibleResource: '現在のリソースパックに対応していません',
+    hotkeyPlaceholder: 'クリックしてショートカットを記録',
+    hotkeyCapturing: 'キーを押してください...',
   },
 
   // プリセット

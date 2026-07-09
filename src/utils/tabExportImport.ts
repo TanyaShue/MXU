@@ -27,7 +27,8 @@ type WireOptionValue =
   | { t: 's'; c: string } // select:   caseName
   | { t: 'cb'; c: string[] } // checkbox: caseNames
   | { t: 'sw'; v: boolean } // switch:   value
-  | { t: 'in'; v: Record<string, string> }; // input: values
+  | { t: 'in'; v: Record<string, string> } // input: values
+  | { t: 'hk'; v: Record<string, string> };
 
 interface WireTask {
   i: string; // id
@@ -67,6 +68,10 @@ function encodeOptionValue(v: OptionValue): WireOptionValue {
       return { t: 'sw', v: v.value };
     case 'input':
       return { t: 'in', v: v.values };
+    case 'hotkey':
+      return { t: 'hk', v: v.values };
+    default:
+      throw new Error('invalid_format');
   }
 }
 
@@ -119,6 +124,8 @@ function decodeOptionValue(w: WireOptionValue): OptionValue {
       return { type: 'switch', value: w.v };
     case 'in':
       return { type: 'input', values: w.v };
+    case 'hk':
+      return { type: 'hotkey', values: w.v };
     default:
       throw new Error('invalid_format');
   }
