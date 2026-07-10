@@ -16,7 +16,12 @@ import { maaService } from '@/services/maaService';
 import clsx from 'clsx';
 import { loggers, generateTaskPipelineOverride, computeResourcePaths } from '@/utils';
 import { getMxuSpecialTask } from '@/types/specialTasks';
-import { isPretaskName, getPretaskItem, buildPretaskArgs, resolveCompatTaskDef } from '@/types/pretasks';
+import {
+  isPretaskName,
+  getPretaskItem,
+  buildPretaskArgs,
+  resolveCompatTaskDef,
+} from '@/types/pretasks';
 import { splitTasksIntoThreeSegments, shouldSkipScreenshot } from '@/utils/taskSegmentation';
 import type { TaskConfig, ControllerConfig } from '@/types/maa';
 import { normalizeAgentConfigs } from '@/types/interface';
@@ -271,8 +276,9 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
         });
         skippedTasks.forEach((task) => {
           const taskDef = resolveCompatTaskDef(projectInterface, task.taskName);
-          const taskLabel =
-            taskDef?.label ? resolveI18nText(taskDef.label, translations) : task.taskName;
+          const taskLabel = taskDef?.label
+            ? resolveI18nText(taskDef.label, translations)
+            : task.taskName;
 
           // 检查是控制器不兼容还是资源不兼容
           const isControllerIncompatible =

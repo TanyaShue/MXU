@@ -271,7 +271,12 @@ export interface HotkeyOption {
   pipeline_override?: Record<string, unknown>;
 }
 
-export type OptionDefinition = SelectOption | CheckboxOption | SwitchOption | InputOption | HotkeyOption;
+export type OptionDefinition =
+  | SelectOption
+  | CheckboxOption
+  | SwitchOption
+  | InputOption
+  | HotkeyOption;
 
 // 运行时状态类型
 export interface SelectedTask {

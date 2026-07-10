@@ -591,7 +591,8 @@ export const useAppStore = create<AppState>()(
           const defaultCases = optionDef.default_case || [];
           optionValues[optionKey] = { type: 'checkbox', caseNames: [...defaultCases] };
         } else if (optionDef.type === 'select') {
-          const caseName = (optionDef.default_case as string | undefined) || optionDef.cases?.[0]?.name || '';
+          const caseName =
+            (optionDef.default_case as string | undefined) || optionDef.cases?.[0]?.name || '';
           optionValues[optionKey] = { type: 'select', caseName };
         } else if (optionDef.type === 'hotkey') {
           const values: Record<string, string> = {};

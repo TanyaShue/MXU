@@ -661,7 +661,10 @@ pub async fn run_pretask(
         };
 
         if stop_requested {
-            info!("run_pretask wait cancelled by stop request: {}", instance_id);
+            info!(
+                "run_pretask wait cancelled by stop request: {}",
+                instance_id
+            );
             std::thread::spawn(move || {
                 let _ = child.wait();
             });
