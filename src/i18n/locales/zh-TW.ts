@@ -31,6 +31,8 @@ export default {
     dragToReorder: '拖動以重新排序',
     closeTabConfirmTitle: '關閉配置',
     closeTabConfirmMessage: '確定要關閉「{{name}}」嗎？',
+    closeMultiTabConfirmTitle: '關閉多個配置',
+    closeMultiTabConfirmMessage: '確定要關閉 {{count}} 個配置嗎？',
   },
 
   // 視窗控制按钮
@@ -47,6 +49,8 @@ export default {
     appearance: '外觀',
     hotkeys: '快捷鍵',
     general: '一般',
+    taskSettings: '任務設定',
+    taskSettingsEmpty: '目前沒有可顯示的設定項',
     language: '語言',
     backgroundImage: '背景圖片',
     backgroundOpacity: '背景不透明度',
@@ -303,6 +307,10 @@ export default {
     preActionCompletedNamed: '前置程式 {{name}} 執行完成',
     preActionFailed: '前置程式執行失敗: {{error}}',
     preActionExitCode: '前置程式結束碼: {{code}}',
+    pretaskStarting: '正在執行預任務: {{name}}',
+    pretaskCompleted: '預任務執行完成: {{name}}',
+    pretaskExitCode: '預任務結束碼: {{code}}',
+    pretaskFailed: '預任務執行失敗: {{error}}',
     preActionConnectDelay: '等待 {{seconds}} 秒後連線...',
     autoPreActionName: '▶️ 啟動 {{name}}',
     autoPreActionAdded: '已自動新增前置程式: {{name}}（預設未啟用）',
@@ -320,6 +328,8 @@ export default {
     noMatchingOptions: '無匹配選項',
     incompatibleController: '不支援目前控制器',
     incompatibleResource: '不支援目前資源包',
+    hotkeyPlaceholder: '點擊錄入快捷鍵',
+    hotkeyCapturing: '按下快捷鍵...',
   },
 
   // 預設設定
@@ -476,6 +486,7 @@ export default {
     noResults: '沒有找到符合的任務',
     alreadyAdded: '已新增',
     specialTasks: '特殊任務',
+    pretasks: '前置任務',
     allSpecialTasksAdded: '已全部新增',
     collapse: '收起面板',
     ungroupedTasks: '其他',

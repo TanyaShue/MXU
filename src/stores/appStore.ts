@@ -31,6 +31,13 @@ import type {
 } from '@/types/interface';
 import type { ConnectionStatus, TaskStatus } from '@/types/maa';
 import { getMxuSpecialTask, isMxuSpecialTask, MXU_SPECIAL_TASKS } from '@/types/specialTasks';
+import {
+  getPretaskItems,
+  pretaskName,
+  isPretaskName,
+  getPretaskItem,
+  resolveCompatTaskDef,
+} from '@/types/pretasks';
 import { decryptCdk, encryptCdk } from '@/utils/cdkCrypto';
 import { loggers } from '@/utils/logger';
 import { findSwitchCase } from '@/utils/optionHelpers';
@@ -444,7 +451,7 @@ export const useAppStore = create<AppState>()(
     },
 
     // 任务操作
-    addTaskToInstance: (instanceId, task) => {
+    addTaskToInstance: (instanceId, task, options) => {
       const pi = get().projectInterface;
       if (!pi) return;
 
@@ -467,7 +474,15 @@ export const useAppStore = create<AppState>()(
 
       set((state) => ({
         instances: state.instances.map((i) =>
-          i.id === instanceId ? { ...i, selectedTasks: [...i.selectedTasks, newTask] } : i,
+          i.id === instanceId
+            ? {
+                ...i,
+                // prepend: pretask 等前置任务固定置于列表顶部
+                selectedTasks: options?.prepend
+                  ? [newTask, ...i.selectedTasks]
+                  : [...i.selectedTasks, newTask],
+              }
+            : i,
         ),
         lastAddedTaskId: newTask.id, // 记录最近添加的任务 ID
         animatingTaskIds: [...state.animatingTaskIds, newTask.id], // 加入动画列表
@@ -575,11 +590,16 @@ export const useAppStore = create<AppState>()(
         } else if (optionDef.type === 'checkbox') {
           const defaultCases = optionDef.default_case || [];
           optionValues[optionKey] = { type: 'checkbox', caseNames: [...defaultCases] };
-        } else {
-          // select 类型
+        } else if (optionDef.type === 'select') {
           const caseName =
             (optionDef.default_case as string | undefined) || optionDef.cases?.[0]?.name || '';
           optionValues[optionKey] = { type: 'select', caseName };
+        } else if (optionDef.type === 'hotkey') {
+          const values: Record<string, string> = {};
+          for (const input of optionDef.hotkeys || []) {
+            values[input.name] = initialValues?.[input.name] ?? input.default ?? '';
+          }
+          optionValues[optionKey] = { type: 'hotkey', values };
         }
       }
 
@@ -714,6 +734,48 @@ export const useAppStore = create<AppState>()(
       }));
     },
 
+    globalOptionValues: {},
+
+    setGlobalOptionValue: (optionKey, value) => {
+      const pi = get().projectInterface;
+
+      set((state) => {
+        const newValues = { ...state.globalOptionValues, [optionKey]: value };
+
+        // 当选项值改变时，初始化新的嵌套选项（与 setTaskOptionValue 逻辑一致）
+        if (pi?.option) {
+          const optDef = pi.option[optionKey];
+          if (
+            optDef &&
+            (optDef.type === 'switch' || optDef.type === 'select' || !optDef.type) &&
+            'cases' in optDef
+          ) {
+            let selectedCase;
+            if (optDef.type === 'switch') {
+              const isChecked = value.type === 'switch' && value.value;
+              selectedCase = findSwitchCase(optDef.cases, isChecked);
+            } else {
+              const caseName = value.type === 'select' ? value.caseName : optDef.cases?.[0]?.name;
+              selectedCase = optDef.cases?.find((c) => c.name === caseName);
+            }
+
+            if (selectedCase?.option && selectedCase.option.length > 0) {
+              for (const nestedKey of selectedCase.option) {
+                if (!newValues[nestedKey]) {
+                  const nestedDef = pi.option[nestedKey];
+                  if (nestedDef) {
+                    Object.assign(newValues, initializeAllOptionValues([nestedKey], pi.option));
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        return { globalOptionValues: newValues };
+      });
+    },
+
     selectAllTasks: (instanceId, enabled) =>
       set((state) => {
         const { controllerName, resourceName } = getCurrentControllerAndResource(state, instanceId);
@@ -726,7 +788,7 @@ export const useAppStore = create<AppState>()(
               selectedTasks: i.selectedTasks.map((t) => {
                 if (!enabled) return { ...t, enabled: false };
                 // 全选时不兼容的任务显式禁用
-                const taskDef = state.projectInterface?.task.find((td) => td.name === t.taskName);
+                const taskDef = resolveCompatTaskDef(state.projectInterface, t.taskName);
                 if (!isTaskCompatible(taskDef, controllerName, resourceName)) {
                   return { ...t, enabled: false };
                 }
@@ -1026,10 +1088,11 @@ export const useAppStore = create<AppState>()(
         });
       }
 
-      // 获取有效的任务名称集合（包含 interface 任务和 MXU 特殊任务）
+      // 获取有效的任务名称集合（包含 interface 任务、MXU 特殊任务与 pretask 伪任务）
       const validTaskNames = new Set([
         ...(pi?.task.map((t) => t.name) || []),
         ...Object.keys(MXU_SPECIAL_TASKS),
+        ...getPretaskItems(pi).map((item) => pretaskName(item)),
       ]);
 
       const instances: Instance[] = config.instances.map((inst) => {
@@ -1056,6 +1119,28 @@ export const useAppStore = create<AppState>()(
                 customName: t.customName,
                 enabled: t.enabled,
                 optionValues: t.optionValues,
+                expanded: prevExpandedByTask.get(t.id) ?? false,
+              };
+            }
+
+            // pretask 伪任务的 option 引用顶层 pi.option
+            if (isPretaskName(t.taskName)) {
+              const pretaskItem = getPretaskItem(pi, t.taskName);
+              const cleanedValues = cleanOptionValues(t.optionValues, pi);
+              const defaultValues =
+                pretaskItem?.option && pi?.option
+                  ? initializeAllOptionValues(pretaskItem.option, pi.option)
+                  : {};
+              const mergedValues = {
+                ...defaultValues,
+                ...cleanedValues,
+              };
+              return {
+                id: t.id,
+                taskName: t.taskName,
+                customName: t.customName,
+                enabled: t.enabled,
+                optionValues: mergedValues,
                 expanded: prevExpandedByTask.get(t.id) ?? false,
               };
             }
@@ -1243,6 +1328,18 @@ export const useAppStore = create<AppState>()(
         showAddTaskPanel: detectedNewTaskNames.length > 0,
         // v2.3.0: 恢复预设初始化标记
         presetInitialized: config.presetInitialized ?? false,
+        // 全局任务设置值：以 global_option 的默认值为基底，合并已保存值（保存值优先）
+        globalOptionValues: (() => {
+          const globalKeys = pi?.global_option;
+          if (!globalKeys || globalKeys.length === 0 || !pi?.option) {
+            return cleanOptionValues(config.globalOptionValues || {}, pi);
+          }
+          const defaults = initializeAllOptionValues(globalKeys, pi.option);
+          return {
+            ...defaults,
+            ...cleanOptionValues(config.globalOptionValues || {}, pi),
+          };
+        })(),
       });
 
       // 应用主题（包括强调色）
@@ -2125,6 +2222,7 @@ function generateConfig(): MxuConfig {
         customAccents: ba?.customAccents ?? state.customAccents,
       };
     })(),
+    globalOptionValues: state.globalOptionValues,
     recentlyClosed: state.recentlyClosed,
     interfaceTaskSnapshot: state.projectInterface?.task.map((t) => t.name) || [],
     newTaskNames: state.newTaskNames,
@@ -2160,6 +2258,7 @@ useAppStore.subscribe(
   (state) => ({
     instances: state.instances,
     activeInstanceId: state.activeInstanceId,
+    globalOptionValues: state.globalOptionValues,
     ...(!_isWebUI && {
       theme: state.theme,
       accentColor: state.accentColor,

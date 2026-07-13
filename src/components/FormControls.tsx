@@ -2,6 +2,7 @@
  * 通用表单控件组件
  * 可在 ActionItem、OptionEditor 等处复用
  */
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FolderOpen } from 'lucide-react';
 import clsx from 'clsx';
@@ -77,6 +78,14 @@ interface TextInputProps {
   inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode'];
   step?: number;
   integerOnly?: boolean;
+}
+
+interface HotkeyInputProps {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  disabled?: boolean;
+  className?: string;
 }
 
 export function TextInput({
@@ -246,6 +255,70 @@ interface TimeInputProps {
   onChange: (value: string) => void;
   disabled?: boolean;
   className?: string;
+}
+
+/**
+ * 从键盘事件生成统一的快捷键组合字符串（如 "Ctrl+Shift+A"）。
+ * 纯修饰键（Ctrl/Shift/Alt/Meta）单独按下时返回 null。
+ * 供设置页快捷键与选项编辑器的 HotkeyInput 复用，保证捕获行为一致。
+ */
+export function buildHotkeyCombo(e: React.KeyboardEvent): string | null {
+  const parts: string[] = [];
+  if (e.ctrlKey || e.metaKey) parts.push('Ctrl');
+  if (e.altKey) parts.push('Alt');
+  if (e.shiftKey) parts.push('Shift');
+
+  let key = e.key as string;
+  if (key === 'Control' || key === 'Shift' || key === 'Alt' || key === 'Meta') {
+    return null;
+  }
+  if (/^f\d+$/i.test(key) || key.length === 1) {
+    key = key.toUpperCase();
+  }
+
+  parts.push(key);
+  return parts.join('+');
+}
+
+export function HotkeyInput({
+  value,
+  onChange,
+  placeholder,
+  disabled,
+  className,
+}: HotkeyInputProps) {
+  const { t } = useTranslation();
+  const [capturing, setCapturing] = useState(false);
+
+  return (
+    <input
+      type="text"
+      readOnly
+      value={value}
+      placeholder={
+        capturing
+          ? t('optionEditor.hotkeyCapturing')
+          : placeholder || t('optionEditor.hotkeyPlaceholder')
+      }
+      disabled={disabled}
+      onFocus={() => !disabled && setCapturing(true)}
+      onBlur={() => setCapturing(false)}
+      onKeyDown={(e) => {
+        if (disabled) return;
+        e.preventDefault();
+        const combo = buildHotkeyCombo(e);
+        if (!combo) return;
+        onChange(combo);
+      }}
+      className={clsx(
+        'px-3 py-1.5 text-sm rounded-md border cursor-pointer',
+        'bg-bg-secondary text-text-primary',
+        'focus:outline-none focus:ring-1 focus:border-accent focus:ring-accent/20 border-border',
+        disabled && 'opacity-60 cursor-not-allowed',
+        className,
+      )}
+    />
+  );
 }
 
 export function TimeInput({ value, onChange, disabled, className }: TimeInputProps) {

@@ -85,6 +85,7 @@ import { WebUIBetaBanner } from './components/app/WebUIBetaBanner';
 import { startGlobalCallbackListener } from './components/connection/callbackCache';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { ScrollText } from 'lucide-react';
+import { defaultWindowSize } from '@/types/config';
 
 const log = loggers.app;
 
@@ -615,7 +616,14 @@ function App() {
 
       // 应用保存的窗口大小和位置
       if (config.settings.windowSize) {
-        await setWindowSize(config.settings.windowSize.width, config.settings.windowSize.height);
+        const { width, height } = config.settings.windowSize;
+        if (isValidWindowSize(width, height)) {
+          await setWindowSize(width, height);
+        } else {
+          log.warn('保存的窗口大小无效，已回退默认值:', { width, height });
+          setWindowSizeStore(defaultWindowSize);
+          await setWindowSize(defaultWindowSize.width, defaultWindowSize.height);
+        }
       }
       if (config.settings.windowPosition && isTauri()) {
         const { x, y } = config.settings.windowPosition;

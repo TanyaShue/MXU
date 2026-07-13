@@ -149,6 +149,7 @@ export interface AppState {
   addTaskToInstance: (
     instanceId: string,
     task: { name: string; option?: string[]; description?: string },
+    options?: { prepend?: boolean },
   ) => void;
   /** v2.3.0: 应用预设配置到实例 */
   applyPreset: (instanceId: string, presetName: string) => void;
@@ -184,6 +185,9 @@ export interface AppState {
     optionKey: string,
     value: OptionValue,
   ) => void;
+  /** 全局任务设置值（对应 interface.global_option），跨实例/配置共享 */
+  globalOptionValues: Record<string, OptionValue>;
+  setGlobalOptionValue: (optionKey: string, value: OptionValue) => void;
   selectAllTasks: (instanceId: string, enabled: boolean) => void;
   collapseAllTasks: (instanceId: string, expanded: boolean) => void;
   renameTask: (instanceId: string, taskId: string, newName: string) => void;

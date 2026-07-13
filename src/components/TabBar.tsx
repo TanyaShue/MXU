@@ -30,6 +30,11 @@ import { getInterfaceLangKey } from '@/i18n';
 import { exportFileWithToast, exportWithToast } from '@/utils/tabExportImport';
 import clsx from 'clsx';
 
+type CloseConfirmData =
+  | { type: 'single'; ids: string[]; name: string }
+  | { type: 'multi'; ids: string[] }
+  | null;
+
 const LazyUpdatePanel = lazy(async () => {
   const module = await import('./UpdatePanel');
   return { default: module.UpdatePanel };
@@ -44,7 +49,7 @@ export function TabBar() {
   const { t } = useTranslation();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
-  const [closeConfirm, setCloseConfirm] = useState<{ id: string; name: string } | null>(null);
+  const [closeConfirm, setCloseConfirm] = useState<CloseConfirmData>(null);
   const [dragState, setDragState] = useState<{
     isDragging: boolean;
     draggedIndex: number;
@@ -100,23 +105,33 @@ export function TabBar() {
     createInstance(t('instance.defaultName'));
   };
 
+  const requestCloseTabs = (ids: string[], name?: string) => {
+    if (confirmBeforeDelete) {
+      if (name !== undefined) {
+        setCloseConfirm({ type: 'single', ids, name });
+      } else {
+        setCloseConfirm({ type: 'multi', ids });
+      }
+    } else {
+      ids.forEach((id) => startTabCloseAnimation(id));
+    }
+  };
+
   const handleCloseTab = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     if (instances.length > 1) {
-      if (confirmBeforeDelete) {
-        const instance = instances.find((inst) => inst.id === id);
-        if (instance) {
-          setCloseConfirm({ id, name: instance.name });
-        }
-      } else {
-        startTabCloseAnimation(id);
+      const instance = instances.find((inst) => inst.id === id);
+      if (instance) {
+        requestCloseTabs([id], instance.name);
       }
     }
   };
 
   const handleConfirmClose = () => {
     if (closeConfirm) {
-      startTabCloseAnimation(closeConfirm.id);
+      closeConfirm.ids.forEach((id) => {
+        startTabCloseAnimation(id);
+      });
       setCloseConfirm(null);
     }
   };
@@ -266,12 +281,8 @@ export function TabBar() {
           icon: X,
           disabled: instances.length <= 1,
           onClick: () => {
-            if (confirmBeforeDelete) {
-              const inst = instances.find((i) => i.id === instanceId);
-              if (inst) setCloseConfirm({ id: instanceId, name: inst.name });
-            } else {
-              startTabCloseAnimation(instanceId);
-            }
+            const inst = instances.find((i) => i.id === instanceId);
+            if (inst) requestCloseTabs([instanceId], inst.name);
           },
         },
         {
@@ -280,11 +291,10 @@ export function TabBar() {
           icon: XCircle,
           disabled: instances.length <= 1,
           onClick: () => {
-            instances.forEach((inst) => {
-              if (inst.id !== instanceId) {
-                startTabCloseAnimation(inst.id);
-              }
-            });
+            const instanceIdsWithoutCurrent = instances
+              .map((inst) => inst.id)
+              .filter((id) => id !== instanceId);
+            requestCloseTabs(instanceIdsWithoutCurrent);
           },
         },
         {
@@ -293,9 +303,8 @@ export function TabBar() {
           icon: PanelRightClose,
           disabled: instanceIndex >= instances.length - 1,
           onClick: () => {
-            instances.slice(instanceIndex + 1).forEach((inst) => {
-              startTabCloseAnimation(inst.id);
-            });
+            const rightInstanceIds = instances.slice(instanceIndex + 1).map((inst) => inst.id);
+            requestCloseTabs(rightInstanceIds);
           },
         },
       ];
@@ -617,8 +626,16 @@ export function TabBar() {
       {/* 关闭标签确认弹窗 */}
       <ConfirmDialog
         open={closeConfirm !== null}
-        title={t('titleBar.closeTabConfirmTitle')}
-        message={t('titleBar.closeTabConfirmMessage', { name: closeConfirm?.name ?? '' })}
+        title={
+          closeConfirm?.type === 'multi'
+            ? t('titleBar.closeMultiTabConfirmTitle')
+            : t('titleBar.closeTabConfirmTitle')
+        }
+        message={
+          closeConfirm?.type === 'multi'
+            ? t('titleBar.closeMultiTabConfirmMessage', { count: closeConfirm.ids.length })
+            : t('titleBar.closeTabConfirmMessage', { name: closeConfirm?.name ?? '' })
+        }
         confirmText={t('common.confirm')}
         cancelText={t('common.cancel')}
         destructive

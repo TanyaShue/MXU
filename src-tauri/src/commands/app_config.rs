@@ -328,6 +328,15 @@ fn merge_imported(interface: &mut serde_json::Value, imported: &serde_json::Valu
         }
     }
 
+    // MXU 扩展：合并 setting 数组（追加到末尾，保持导入顺序）
+    if let Some(settings) = imported.get("setting").and_then(|v| v.as_array()) {
+        if let Some(arr) = interface.get_mut("setting").and_then(|v| v.as_array_mut()) {
+            arr.extend(settings.iter().cloned());
+        } else {
+            interface["setting"] = serde_json::Value::Array(settings.to_vec());
+        }
+    }
+
     // 合并 group 数组（按 name 去重，先定义优先）
     if let Some(groups) = imported.get("group").and_then(|v| v.as_array()) {
         let existing_names: std::collections::HashSet<String> = interface
@@ -362,6 +371,23 @@ fn merge_imported(interface: &mut serde_json::Value, imported: &serde_json::Valu
                 interface["group"] = serde_json::Value::Array(new_groups);
             }
         }
+    }
+
+    // v2.7.0: 合并 pretask（单对象视为一项，按导入顺序追加为有序列表）
+    let imported_pretasks = normalize_external_task(imported.get("pretask"));
+    if !imported_pretasks.is_empty() {
+        let mut merged = normalize_external_task(interface.get("pretask"));
+        merged.extend(imported_pretasks);
+        interface["pretask"] = serde_json::Value::Array(merged);
+    }
+}
+
+/// 将 pretask 字段（单对象或数组）标准化为 Vec，未定义则返回空 Vec。
+fn normalize_external_task(value: Option<&serde_json::Value>) -> Vec<serde_json::Value> {
+    match value {
+        Some(serde_json::Value::Array(arr)) => arr.clone(),
+        Some(v) if v.is_object() => vec![v.clone()],
+        _ => Vec::new(),
     }
 }
 

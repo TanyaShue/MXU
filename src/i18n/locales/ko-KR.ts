@@ -31,6 +31,8 @@ export default {
     dragToReorder: '드래그하여 순서 변경',
     closeTabConfirmTitle: '탭 닫기',
     closeTabConfirmMessage: '"{{name}}"을(를) 닫으시겠습니까?',
+    closeMultiTabConfirmTitle: '탭 여러 개 닫기',
+    closeMultiTabConfirmMessage: '{{count}}개의 탭을 닫으시겠습니까?',
   },
 
   // 창 컨트롤
@@ -47,6 +49,8 @@ export default {
     appearance: '외관',
     hotkeys: '단축키',
     general: '일반',
+    taskSettings: '작업 설정',
+    taskSettingsEmpty: '표시할 수 있는 설정 항목이 없습니다',
     language: '언어',
     backgroundImage: '배경 이미지',
     backgroundOpacity: '배경 불투명도',
@@ -308,6 +312,10 @@ export default {
     preActionCompletedNamed: '전처리 프로그램 {{name}} 완료',
     preActionFailed: '전처리 프로그램 실패: {{error}}',
     preActionExitCode: '전처리 프로그램 종료 코드: {{code}}',
+    pretaskStarting: '사전 작업 실행 중: {{name}}',
+    pretaskCompleted: '사전 작업 완료: {{name}}',
+    pretaskExitCode: '사전 작업 종료 코드: {{code}}',
+    pretaskFailed: '사전 작업 실행 실패: {{error}}',
     preActionConnectDelay: '{{seconds}}초 후 연결합니다...',
     autoPreActionName: '▶️ {{name}} 실행',
     autoPreActionAdded: '전처리 프로그램 자동 추가: {{name}} (기본적으로 비활성화)',
@@ -325,6 +333,8 @@ export default {
     noMatchingOptions: '일치하는 옵션 없음',
     incompatibleController: '현재 컨트롤러에서 지원되지 않음',
     incompatibleResource: '현재 리소스 팩에서 지원되지 않음',
+    hotkeyPlaceholder: '클릭하여 단축키 입력',
+    hotkeyCapturing: '키를 누르세요...',
   },
 
   // 프리셋
@@ -485,6 +495,7 @@ export default {
     alreadyAdded: '추가됨',
     collapse: '패널 접기',
     specialTasks: '특수 작업',
+    pretasks: '사전 작업',
     allSpecialTasksAdded: '모두 추가됨',
     ungroupedTasks: '기타',
     resizeHandleAriaLabel: '작업 추가 패널 높이 조정',

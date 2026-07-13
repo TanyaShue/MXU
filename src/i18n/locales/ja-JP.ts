@@ -31,6 +31,8 @@ export default {
     dragToReorder: 'ドラッグして並べ替え',
     closeTabConfirmTitle: '設定を閉じる',
     closeTabConfirmMessage: '「{{name}}」を閉じてもよろしいですか？',
+    closeMultiTabConfirmTitle: '設定を複数閉じる',
+    closeMultiTabConfirmMessage: '{{count}} 個の設定を閉じてもよろしいですか？',
   },
 
   // ウィンドウコントロール
@@ -47,6 +49,8 @@ export default {
     appearance: '外観',
     hotkeys: 'ショートカットキー',
     general: '一般',
+    taskSettings: 'タスク設定',
+    taskSettingsEmpty: '表示できる設定項目がありません',
     language: '言語',
     backgroundImage: '背景画像',
     backgroundOpacity: '背景の不透明度',
@@ -310,6 +314,10 @@ export default {
     preActionCompletedNamed: '前処理プログラム {{name}} 完了',
     preActionFailed: '前処理プログラム失敗: {{error}}',
     preActionExitCode: '前処理プログラム終了コード: {{code}}',
+    pretaskStarting: '事前タスクを実行中: {{name}}',
+    pretaskCompleted: '事前タスクが完了しました: {{name}}',
+    pretaskExitCode: '事前タスク終了コード: {{code}}',
+    pretaskFailed: '事前タスクの実行に失敗しました: {{error}}',
     preActionConnectDelay: '{{seconds}} 秒後に接続します...',
     autoPreActionName: '▶️ {{name}} を起動',
     autoPreActionAdded: '前処理プログラムを自動追加しました: {{name}}（デフォルトでは無効）',
@@ -327,6 +335,8 @@ export default {
     noMatchingOptions: '一致するオプションがありません',
     incompatibleController: '現在のコントローラーに対応していません',
     incompatibleResource: '現在のリソースパックに対応していません',
+    hotkeyPlaceholder: 'クリックしてショートカットを記録',
+    hotkeyCapturing: 'キーを押してください...',
   },
 
   // プリセット
@@ -487,6 +497,7 @@ export default {
     noResults: '一致するタスクが見つかりません',
     alreadyAdded: '追加済み',
     specialTasks: '特殊タスク',
+    pretasks: '事前タスク',
     allSpecialTasksAdded: 'すべて追加済み',
     collapse: 'パネルを閉じる',
     ungroupedTasks: 'その他',

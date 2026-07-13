@@ -15,6 +15,14 @@ export const createDefaultOptionValue = (optionDef: OptionDefinition): OptionVal
     return { type: 'input', values };
   }
 
+  if (optionDef.type === 'hotkey') {
+    const values: Record<string, string> = {};
+    optionDef.hotkeys.forEach((input) => {
+      values[input.name] = input.default || '';
+    });
+    return { type: 'hotkey', values };
+  }
+
   if (optionDef.type === 'switch') {
     const defaultCase = optionDef.default_case || optionDef.cases[0]?.name || 'Yes';
     const isYes = ['Yes', 'yes', 'Y', 'y'].includes(defaultCase);
@@ -167,6 +175,10 @@ export const convertPresetOptionValue = (
 
   if (optDef.type === 'input' && typeof presetValue === 'object' && !Array.isArray(presetValue)) {
     return { type: 'input', values: presetValue as Record<string, string> };
+  }
+
+  if (optDef.type === 'hotkey' && typeof presetValue === 'object' && !Array.isArray(presetValue)) {
+    return { type: 'hotkey', values: presetValue as Record<string, string> };
   }
 
   if ((!optDef.type || optDef.type === 'select') && typeof presetValue === 'string') {

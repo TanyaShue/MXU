@@ -41,14 +41,14 @@ struct AgentOutputBatchState {
     flush_running: bool,
 }
 
-struct AgentOutputBatcher {
+pub(crate) struct AgentOutputBatcher {
     app: tauri::AppHandle,
     instance_id: String,
     state: Mutex<AgentOutputBatchState>,
 }
 
 impl AgentOutputBatcher {
-    fn new(app: tauri::AppHandle, instance_id: String) -> Arc<Self> {
+    pub(crate) fn new(app: tauri::AppHandle, instance_id: String) -> Arc<Self> {
         Arc::new(Self {
             app,
             instance_id,
@@ -62,7 +62,7 @@ impl AgentOutputBatcher {
         })
     }
 
-    fn enqueue(self: &Arc<Self>, stream: &str, line: &str) {
+    pub(crate) fn enqueue(self: &Arc<Self>, stream: &str, line: &str) {
         let should_spawn = {
             let mut state = self.state.lock().unwrap();
             state.lines.push(line.to_string());
