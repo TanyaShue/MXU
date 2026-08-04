@@ -97,6 +97,9 @@ export default {
     hotkeysGlobal: '全局快捷键',
     hotkeysGlobalHint: '开启后窗口失焦时也能使用快捷键',
     hotkeysGlobalOnlyStart: '全局模式下仅开始生效',
+    hotkeysGlobalConflict:
+      '快捷键 {{combo}} 已被占用，全局快捷键当前未生效。请更换按键，或检查是否有其他程序 / 重复运行的实例占用该组合键。',
+    hotkeysGlobalRegisterFailed: '全局快捷键 {{combo}} 注册失败：{{error}}',
     minimizeToTray: '关闭时最小化到托盘',
     minimizeToTrayHint: '点击关闭按钮时隐藏到系统托盘而非退出程序',
     autoStart: '开机自启动',
@@ -111,6 +114,9 @@ export default {
       '每次手动打开程序时，也自动执行上方选定的配置（关闭则仅在开机自启动时触发）',
     confirmBeforeDelete: '删除操作需要二次确认',
     confirmBeforeDeleteHint: '删除任务、清空列表等危险操作会先弹出确认对话框',
+    helpImproveSoftware: '帮助改进软件',
+    helpImproveSoftwareHint: '匿名发送崩溃与任务统计，帮助发现常见问题',
+    helpImproveSoftwareDisabledHint: '当前为调试 / 开发版本，已禁用匿名数据上报',
     maxLogsPerInstance: '每个实例保留的日志上限',
     maxLogsPerInstanceHint: '超过上限会自动丢弃最旧的日志（建议 500～2000）',
     resetWindowLayout: '重置窗口布局',
@@ -227,7 +233,11 @@ export default {
         '尚未手动选择过窗口，已自动匹配到「{{name}}」。如需更换，请在连接设置中手动选择，下次将记住您的选择。',
       resourceFailed: '资源加载失败',
       startFailed: '任务启动失败',
+      workstationLocked: '检测到电脑处于锁屏状态，请先解锁后再运行任务',
       agentStartParams: 'Agent #{{index}} 启动参数: {{cmd}}  (工作目录: {{cwd}})',
+      agentSpawnHintFileNotFound: '请先检查 Agent 是否被杀软拦截，确认无误后重新覆盖安装。',
+      agentSpawnHintAppControl:
+        '请在「Windows 安全中心 → 应用和浏览器控制 → 智能应用控制」中关闭该功能后重试。',
       needConfig: '请先连接设备并加载资源，或在连接面板保存设备配置',
     },
   },
@@ -365,6 +375,13 @@ export default {
     win32: 'Windows 窗口',
     wlroots: 'WlRoots (Linux)',
     playcover: 'PlayCover (macOS)',
+    macos: 'macOS 窗口',
+    macosPermissionsRequired:
+      '需要授予屏幕录制和辅助功能权限。请在 macOS“系统设置”的“隐私与安全性”中授权后重试。',
+    macosUnsupportedPlatform: 'macOS 原生窗口控制器仅可在 macOS 上使用。',
+    macosVersionRequired: 'macOS 原生窗口控制器需要 MaaFramework v5.10.0-beta.1 或更高版本。',
+    macosSystemVersionRequired: 'macOS 原生窗口控制器需要 macOS 14.0 或更高版本。',
+    macosSystemVersionDetectionFailed: '无法识别当前 macOS 系统版本，请查看日志了解详情。',
     gamepad: '游戏手柄',
     connecting: '连接中...',
     connected: '已连接',
@@ -455,6 +472,7 @@ export default {
       loadingResource: '正在加载资源: {{name}}',
       resourceLoaded: '资源加载成功: {{name}}',
       resourceFailed: '资源加载失败: {{name}}',
+      resourceFailedHint: '可删除该资源目录后重新覆盖安装再试。',
       // 任务消息
       taskStarting: '任务开始: {{name}}',
       taskSucceeded: '任务完成: {{name}}',
@@ -556,6 +574,7 @@ export default {
   // 欢迎弹窗
   welcome: {
     dismiss: '我知道了',
+    viewAgain: '查看欢迎信息',
   },
 
   // 新用户引导

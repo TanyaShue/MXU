@@ -96,6 +96,9 @@ export default {
     hotkeysGlobal: '全域快捷鍵',
     hotkeysGlobalHint: '開啟後視窗失焦時也能使用快捷鍵',
     hotkeysGlobalOnlyStart: '全域模式下僅開始生效',
+    hotkeysGlobalConflict:
+      '快捷鍵 {{combo}} 已被佔用，全域快捷鍵目前未生效。請更換按鍵，或檢查是否有其他程式 / 重複執行的實例佔用該組合鍵。',
+    hotkeysGlobalRegisterFailed: '全域快捷鍵 {{combo}} 註冊失敗：{{error}}',
     minimizeToTray: '關閉時最小化到托盤',
     minimizeToTrayHint: '點選關閉按鈕時隱藏到系統托盤而非退出程式',
     autoStart: '開機自啟動',
@@ -110,6 +113,9 @@ export default {
       '每次手動開啟程式時，也自動執行上方選定的配置（關閉則僅在開機自啟動時觸發）',
     confirmBeforeDelete: '刪除操作需要二次確認',
     confirmBeforeDeleteHint: '刪除任務、清空列表等危險操作會先彈出確認對話框',
+    helpImproveSoftware: '協助改進軟體',
+    helpImproveSoftwareHint: '匿名傳送崩潰與任務統計，協助發現常見問題',
+    helpImproveSoftwareDisabledHint: '目前為除錯 / 開發版本，已停用匿名資料回報',
     maxLogsPerInstance: '每個實例保留的日誌上限',
     maxLogsPerInstanceHint: '超出上限會自動丟棄最舊的日誌（建議 500～2000）',
     resetWindowLayout: '重設視窗佈局',
@@ -223,7 +229,11 @@ export default {
         '尚未手動選擇過視窗，已自動匹配到「{{name}}」。如需更換，請在連接設定中手動選擇，下次將記住您的選擇。',
       resourceFailed: '資源載入失敗',
       startFailed: '任務啟動失敗',
+      workstationLocked: '偵測到電腦處於鎖定畫面狀態，請先解鎖後再執行任務',
       agentStartParams: 'Agent #{{index}} 啟動參數: {{cmd}}  (工作目錄: {{cwd}})',
+      agentSpawnHintFileNotFound: '請先檢查 Agent 是否被防毒軟體攔截，確認無誤後重新覆蓋安裝。',
+      agentSpawnHintAppControl:
+        '請在「Windows 安全性 → 應用程式與瀏覽器控制 → 智能應用程式控制」中關閉該功能後重試。',
       needConfig: '請先連接裝置並載入資源，或在連接面板儲存裝置設定',
     },
   },
@@ -361,6 +371,13 @@ export default {
     win32: 'Windows 視窗',
     wlroots: 'WlRoots (Linux)',
     playcover: 'PlayCover (macOS)',
+    macos: 'macOS 視窗',
+    macosPermissionsRequired:
+      '需要授予螢幕錄製和輔助使用權限。請在 macOS「系統設定」的「隱私權與安全性」中授權後重試。',
+    macosUnsupportedPlatform: 'macOS 原生視窗控制器僅可在 macOS 上使用。',
+    macosVersionRequired: 'macOS 原生視窗控制器需要 MaaFramework v5.10.0-beta.1 或更新版本。',
+    macosSystemVersionRequired: 'macOS 原生視窗控制器需要 macOS 14.0 或更新版本。',
+    macosSystemVersionDetectionFailed: '無法識別目前的 macOS 系統版本，請查看日誌以瞭解詳情。',
     gamepad: '遊戲控制器',
     connecting: '連接中...',
     connected: '已連接',
@@ -451,6 +468,7 @@ export default {
       loadingResource: '正在載入資源: {{name}}',
       resourceLoaded: '資源載入成功: {{name}}',
       resourceFailed: '資源載入失敗: {{name}}',
+      resourceFailedHint: '可刪除該資源目錄後重新覆蓋安裝再試。',
       // 任務訊息
       taskStarting: '任務開始: {{name}}',
       taskSucceeded: '任務完成: {{name}}',
@@ -552,6 +570,7 @@ export default {
   // 欢迎彈窗
   welcome: {
     dismiss: '我知道了',
+    viewAgain: '查看歡迎資訊',
   },
 
   // 新用戶引導

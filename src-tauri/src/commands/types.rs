@@ -2,7 +2,7 @@
 //!
 //! 包含 Tauri 命令使用的数据结构和枚举
 
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 use std::process::Child;
 use std::sync::Mutex;
@@ -81,6 +81,13 @@ pub enum ControllerConfig {
         #[serde(default)]
         display_short_side: Option<i32>,
     },
+    MacOS {
+        handle: u64,
+        screencap_method: u64,
+        input_method: u64,
+        #[serde(default)]
+        display_short_side: Option<i32>,
+    },
     WlRoots {
         wlr_socket_path: String,
         #[serde(default)]
@@ -110,6 +117,29 @@ pub enum ControllerConfig {
         #[serde(default)]
         display_short_side: Option<i32>,
     },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ControllerConfig;
+
+    #[test]
+    fn deserializes_macos_controller_config_with_default_display_short_side() {
+        let config: ControllerConfig = serde_json::from_str(
+            r#"{"type":"MacOS","handle":42,"screencap_method":1,"input_method":2}"#,
+        )
+        .expect("MacOS controller config should deserialize");
+
+        assert_eq!(
+            config,
+            ControllerConfig::MacOS {
+                handle: 42,
+                screencap_method: 1,
+                input_method: 2,
+                display_short_side: None,
+            }
+        );
+    }
 }
 
 /// 连接状态
@@ -352,6 +382,23 @@ pub struct TaskConfig {
     /// 对应的前端选中任务 ID（用于后端跟踪 per-task 状态）
     #[serde(default)]
     pub selected_task_id: Option<String>,
+    /// interface 任务名（如 `SwitchTeam`），仅用于遥测埋点
+    #[serde(default)]
+    pub task_name: Option<String>,
+    /// 任务选项摘要（已由前端脱敏），仅用于遥测埋点
+    #[serde(default)]
+    pub options: Option<BTreeMap<String, String>>,
+}
+
+/// 当前 controller 描述（前端传入，仅用于遥测埋点）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ControllerInfo {
+    /// interface 中的 controller 名，如 `Win32-Front`
+    #[serde(default)]
+    pub name: Option<String>,
+    /// controller 类型，如 `Win32`/`Adb`
+    #[serde(default, rename = "type")]
+    pub type_name: Option<String>,
 }
 
 /// 版本检查结果

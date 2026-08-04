@@ -20,6 +20,8 @@ export interface SavedTask {
   taskName: string; // 对应 interface 中的 task.name
   customName?: string; // 用户自定义名称
   enabled: boolean;
+  /** 各控制器独立的勾选状态（旧配置中不存在时按 enabled 初始化） */
+  enabledByController?: Record<string, boolean>;
   optionValues: Record<string, OptionValue>;
 }
 
@@ -27,7 +29,7 @@ export interface SavedTask {
 export interface SavedDeviceInfo {
   // ADB 设备：保存设备名称
   adbDeviceName?: string;
-  // Win32/Gamepad：保存窗口名称
+  // Win32/MacOS/Gamepad：保存窗口名称
   windowName?: string;
   // WlRoots：保存 Wayland socket 路径
   wlrSocketPath?: string;
@@ -162,6 +164,8 @@ export interface AppSettings {
   autoStartRemovedInstanceName?: string; // 被删除的自动执行配置名称（用于提示用户）
   /** 前置动作轮询设备就绪后、连接前的额外延迟秒数（默认 5，仅通过编辑 mxu.json 修改） */
   preActionConnectDelaySec?: number;
+  /** 是否开启匿名遥测（帮助改进软件），默认 true；调试 / 开发版本强制关闭 */
+  helpImproveSoftware?: boolean;
 }
 
 // MXU 配置文件完整结构
@@ -236,5 +240,6 @@ export const defaultConfig: MxuConfig = {
     autoClearLogsOnLaunch: true,
     windowSize: defaultWindowSize,
     mirrorChyan: defaultMirrorChyanSettings,
+    helpImproveSoftware: true,
   },
 };

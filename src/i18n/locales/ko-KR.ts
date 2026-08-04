@@ -96,6 +96,9 @@ export default {
     hotkeysGlobal: '전역 단축키',
     hotkeysGlobalHint: '창이 비활성화되어도 단축키 사용',
     hotkeysGlobalOnlyStart: '전역 모드에서는 시작만 작동',
+    hotkeysGlobalConflict:
+      '단축키 {{combo}}이(가) 이미 사용 중이어서 전역 단축키가 현재 작동하지 않습니다. 다른 키로 변경하거나, 다른 프로그램 또는 중복 실행된 인스턴스가 해당 조합을 사용하고 있는지 확인해 주세요.',
+    hotkeysGlobalRegisterFailed: '전역 단축키 {{combo}} 등록 실패: {{error}}',
     minimizeToTray: '닫을 때 트레이로 최소화',
     minimizeToTrayHint: '닫기 버튼을 클릭하면 종료하지 않고 시스템 트레이에 숨깁니다',
     autoStart: '시작 시 자동 실행',
@@ -111,6 +114,10 @@ export default {
       '앱을 수동으로 열 때도 위에서 선택한 구성을 자동 실행합니다 (비활성화 시 시스템 시작 시에만 실행)',
     confirmBeforeDelete: '삭제 작업 확인',
     confirmBeforeDeleteHint: '삭제/목록 비우기 등 위험한 작업 전에 확인 대화 상자를 표시합니다',
+    helpImproveSoftware: '소프트웨어 개선에 참여',
+    helpImproveSoftwareHint:
+      '충돌 및 작업 통계를 익명으로 전송하여 일반적인 문제를 찾는 데 도움을 줍니다.',
+    helpImproveSoftwareDisabledHint: '디버그 / 개발 버전에서는 익명 데이터 전송이 비활성화됩니다',
     maxLogsPerInstance: '인스턴스당 로그 최대 개수',
     maxLogsPerInstanceHint: '한도를 초과하면 가장 오래된 로그가 자동으로 삭제됩니다(권장 500~2000)',
     resetWindowLayout: '창 레이아웃 초기화',
@@ -227,7 +234,12 @@ export default {
         '창이 설정되지 않아 「{{name}}」을(를) 자동으로 선택했습니다. 변경하려면 연결 설정에서 수동으로 선택하세요. 다음 번에는 선택 내용이 저장됩니다.',
       resourceFailed: '리소스 로딩에 실패했습니다',
       startFailed: '작업 시작에 실패했습니다',
+      workstationLocked: '컴퓨터가 잠금 화면 상태입니다. 잠금을 해제한 후 작업을 실행하세요',
       agentStartParams: 'Agent #{{index}} 시작 파라미터: {{cmd}}  (작업 디렉토리: {{cwd}})',
+      agentSpawnHintFileNotFound:
+        'Agent가 백신에 의해 차단되지 않았는지 확인한 뒤, 문제가 없으면 덮어쓰기 재설치를 진행하세요.',
+      agentSpawnHintAppControl:
+        '「Windows 보안 → 앱 및 브라우저 제어 → 스마트 앱 컨트롤」에서 해당 기능을 끈 후 다시 시도하세요.',
       needConfig: '먼저 기기를 연결하고 리소스를 로드하거나 연결 패널에서 기기 설정을 저장하세요',
     },
   },
@@ -367,6 +379,15 @@ export default {
     win32: 'Windows 창',
     wlroots: 'WlRoots (Linux)',
     playcover: 'PlayCover (macOS)',
+    macos: 'macOS 창',
+    macosPermissionsRequired:
+      '화면 기록 및 손쉬운 사용 권한이 필요합니다. macOS 시스템 설정의 개인정보 보호 및 보안에서 권한을 허용한 후 다시 시도하세요.',
+    macosUnsupportedPlatform: 'macOS 네이티브 창 컨트롤러는 macOS에서만 사용할 수 있습니다.',
+    macosVersionRequired:
+      'macOS 네이티브 창 컨트롤러에는 MaaFramework v5.10.0-beta.1 이상이 필요합니다.',
+    macosSystemVersionRequired: 'macOS 네이티브 창 컨트롤러에는 macOS 14.0 이상이 필요합니다.',
+    macosSystemVersionDetectionFailed:
+      '현재 macOS 버전을 확인할 수 없습니다. 자세한 내용은 로그를 확인하세요.',
     gamepad: '게임패드',
     connecting: '연결 중...',
     connected: '연결됨',
@@ -459,6 +480,7 @@ export default {
       loadingResource: '리소스 로딩 중: {{name}}',
       resourceLoaded: '리소스 로드됨: {{name}}',
       resourceFailed: '리소스 로딩 실패: {{name}}',
+      resourceFailedHint: '해당 리소스 디렉터리를 삭제한 뒤 덮어쓰기 재설치 후 다시 시도해 보세요.',
       // 작업 메시지
       taskStarting: '작업 시작: {{name}}',
       taskSucceeded: '작업 완료: {{name}}',
@@ -564,6 +586,7 @@ export default {
   // 환영 대화상자
   welcome: {
     dismiss: '확인했습니다',
+    viewAgain: '환영 메시지 보기',
   },
 
   // 신규 사용자 가이드

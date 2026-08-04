@@ -97,6 +97,9 @@ export default {
     hotkeysGlobal: 'Global hotkeys',
     hotkeysGlobalHint: 'Enable hotkeys when window is not focused',
     hotkeysGlobalOnlyStart: 'only start works in global mode',
+    hotkeysGlobalConflict:
+      'Hotkey {{combo}} is already taken, so global hotkeys are currently inactive. Please pick another key, or check whether another program or a duplicate instance is holding this combination.',
+    hotkeysGlobalRegisterFailed: 'Failed to register global hotkey {{combo}}: {{error}}',
     minimizeToTray: 'Minimize to tray on close',
     minimizeToTrayHint: 'Hide to system tray instead of exiting when clicking close button',
     autoStart: 'Launch at startup',
@@ -113,6 +116,11 @@ export default {
     confirmBeforeDelete: 'Confirm delete actions',
     confirmBeforeDeleteHint:
       'Show a confirmation dialog before delete/clear list and other dangerous actions.',
+    helpImproveSoftware: 'Help Improve the Software',
+    helpImproveSoftwareHint:
+      'Anonymously send crash reports and task statistics to help find common issues.',
+    helpImproveSoftwareDisabledHint:
+      'Anonymous data reporting is disabled in debug / development builds.',
     maxLogsPerInstance: 'Max logs per instance',
     maxLogsPerInstanceHint:
       'Oldest logs will be discarded when exceeding the limit (recommended 500–2000)',
@@ -234,7 +242,12 @@ export default {
         'No window was previously selected. Automatically matched "{{name}}". To change, select manually in Connection Settings — your choice will be remembered next time.',
       resourceFailed: 'Resource loading failed',
       startFailed: 'Failed to start tasks',
+      workstationLocked: 'The computer is locked. Please unlock it before running tasks.',
       agentStartParams: 'Agent #{{index}} start params: {{cmd}}  (cwd: {{cwd}})',
+      agentSpawnHintFileNotFound:
+        'Check whether antivirus blocked the Agent, then reinstall by overwriting the installation.',
+      agentSpawnHintAppControl:
+        'Turn off Smart App Control under Windows Security → App & browser control, then retry.',
       needConfig:
         'Please connect device and load resource first, or save device config in connection panel',
     },
@@ -375,6 +388,15 @@ export default {
     win32: 'Windows Window',
     wlroots: 'WlRoots (Linux)',
     playcover: 'PlayCover (macOS)',
+    macos: 'macOS Window',
+    macosPermissionsRequired:
+      'Screen Recording and Accessibility permissions are required. Grant them in macOS System Settings under Privacy & Security, then try again.',
+    macosUnsupportedPlatform: 'The native macOS window controller is only available on macOS.',
+    macosVersionRequired:
+      'The native macOS window controller requires MaaFramework v5.10.0-beta.1 or later.',
+    macosSystemVersionRequired: 'The native macOS window controller requires macOS 14.0 or later.',
+    macosSystemVersionDetectionFailed:
+      'The current macOS version could not be detected. Check the logs for details.',
     gamepad: 'Gamepad',
     connecting: 'Connecting...',
     connected: 'Connected',
@@ -466,6 +488,8 @@ export default {
       loadingResource: 'Loading resource: {{name}}',
       resourceLoaded: 'Resource loaded: {{name}}',
       resourceFailed: 'Resource load failed: {{name}}',
+      resourceFailedHint:
+        'Try deleting the resource directory and reinstalling (overwrite) before retrying.',
       // Task messages
       taskStarting: 'Task started: {{name}}',
       taskSucceeded: 'Task completed: {{name}}',
@@ -573,6 +597,7 @@ export default {
   // Welcome dialog
   welcome: {
     dismiss: 'Got it',
+    viewAgain: 'View welcome message',
   },
 
   // Onboarding

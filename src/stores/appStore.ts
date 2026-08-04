@@ -1,6 +1,7 @@
 import i18n, { getInterfaceLangKey, setLanguage as setI18nLanguage } from '@/i18n';
 import { saveConfig } from '@/services/configService';
 import { maaService } from '@/services/maaService';
+import { isTelemetryBlockedByBuild, setTelemetryEnabled } from '@/services/telemetryService';
 import {
   type AccentColor,
   applyTheme,
@@ -65,6 +66,7 @@ import {
   sanitizeOptionValues,
 } from './helpers';
 import { persistRuntimeLogs } from '@/utils/runtimeLogPersistence';
+import { cacheTaskEnabledForController } from '@/utils/taskControllerCache';
 // 从独立模块导入类型和辅助函数
 import type { AppState, LogEntry, TaskRunStatus } from './types';
 
@@ -107,6 +109,59 @@ function cleanOptionValues(
   return sanitizeOptionValues(optionValues, pi.option, (message) => loggers.config.warn(message));
 }
 
+function updateSelectedName(
+  selectedNames: Record<string, string>,
+  instanceId: string,
+  name: string | undefined,
+): Record<string, string> {
+  const updatedNames = { ...selectedNames };
+  if (name === undefined) {
+    delete updatedNames[instanceId];
+  } else {
+    updatedNames[instanceId] = name;
+  }
+  return updatedNames;
+}
+
+function isTaskControllerCompatible(
+  taskDef: { controller?: string[] } | undefined,
+  controllerName: string | undefined,
+): boolean {
+  return (
+    !controllerName ||
+    !taskDef?.controller ||
+    taskDef.controller.length === 0 ||
+    taskDef.controller.includes(controllerName)
+  );
+}
+
+function resolveTaskEnabledForController(
+  task: SelectedTask,
+  taskDef: { controller?: string[] } | undefined,
+  previousControllerName: string | undefined,
+  controllerName: string,
+  enabledByController: Record<string, boolean>,
+): boolean {
+  if (!isTaskControllerCompatible(taskDef, controllerName)) return false;
+
+  if (Object.prototype.hasOwnProperty.call(enabledByController, controllerName)) {
+    return enabledByController[controllerName];
+  }
+
+  // 首次进入新控制器时继承当前值，但不能继承由“不支持该任务”产生的 false。
+  if (isTaskControllerCompatible(taskDef, previousControllerName)) {
+    return task.enabled;
+  }
+
+  const cachedEntries = Object.entries(enabledByController);
+  for (let index = cachedEntries.length - 1; index >= 0; index -= 1) {
+    const [cachedControllerName, enabled] = cachedEntries[index];
+    if (isTaskControllerCompatible(taskDef, cachedControllerName)) return enabled;
+  }
+
+  return task.enabled;
+}
+
 function forwardLogToStdout(message: string) {
   const plain = message.replace(/<[^>]*>/g, '').trim();
   if (!plain) return;
@@ -147,6 +202,7 @@ export const useAppStore = create<AppState>()(
     confirmBeforeDelete: false,
     maxLogsPerInstance: DEFAULT_MAX_LOGS_PER_INSTANCE,
     autoClearLogsOnLaunch: true,
+    helpImproveSoftware: true,
     customAccents: [],
     setTheme: (theme) => {
       set({ theme });
@@ -185,6 +241,13 @@ export const useAppStore = create<AppState>()(
     },
     setAutoClearLogsOnLaunch: (enabled) => {
       set({ autoClearLogsOnLaunch: enabled });
+    },
+    setHelpImproveSoftware: (enabled) => {
+      // 调试 / 开发版本强制关闭，忽略开启请求
+      const blocked = isTelemetryBlockedByBuild(get().projectInterface);
+      const next = blocked ? false : enabled;
+      set({ helpImproveSoftware: next });
+      void setTelemetryEnabled(next);
     },
     addCustomAccent: (accent) => {
       set((state) => ({
@@ -251,6 +314,10 @@ export const useAppStore = create<AppState>()(
       stopTasks: 'F11',
     },
     setHotkeys: (hotkeys) => set({ hotkeys }),
+
+    // 全局快捷键注册失败信息（不落盘，仅本次运行）
+    globalHotkeyError: null,
+    setGlobalHotkeyError: (err) => set({ globalHotkeyError: err }),
 
     // 当前页面
     currentPage: 'main',
@@ -399,6 +466,11 @@ export const useAppStore = create<AppState>()(
               taskName: t.taskName,
               customName: t.customName,
               enabled: t.enabled,
+              enabledByController: cacheTaskEnabledForController(
+                t.enabledByController,
+                instanceToClose.controllerName,
+                t.enabled,
+              ),
               optionValues: t.optionValues,
             })),
             schedulePolicies: instanceToClose.schedulePolicies,
@@ -430,6 +502,16 @@ export const useAppStore = create<AppState>()(
     updateInstance: (id, updates) =>
       set((state) => ({
         instances: state.instances.map((i) => (i.id === id ? { ...i, ...updates } : i)),
+        ...(Object.prototype.hasOwnProperty.call(updates, 'controllerName') && {
+          selectedController: updateSelectedName(
+            state.selectedController,
+            id,
+            updates.controllerName,
+          ),
+        }),
+        ...(Object.prototype.hasOwnProperty.call(updates, 'resourceName') && {
+          selectedResource: updateSelectedName(state.selectedResource, id, updates.resourceName),
+        }),
       })),
 
     renameInstance: (id, newName) =>
@@ -854,6 +936,9 @@ export const useAppStore = create<AppState>()(
         ...originalTask,
         id: generateId(),
         customName: newCustomName,
+        enabledByController: originalTask.enabledByController
+          ? { ...originalTask.enabledByController }
+          : undefined,
         optionValues: { ...originalTask.optionValues },
       };
 
@@ -949,6 +1034,7 @@ export const useAppStore = create<AppState>()(
         selectedTasks: sourceInstance.selectedTasks.map((t) => ({
           ...t,
           id: generateId(),
+          enabledByController: t.enabledByController ? { ...t.enabledByController } : undefined,
           optionValues: { ...t.optionValues },
         })),
         isRunning: false,
@@ -1118,6 +1204,7 @@ export const useAppStore = create<AppState>()(
                 taskName: t.taskName,
                 customName: t.customName,
                 enabled: t.enabled,
+                enabledByController: t.enabledByController,
                 optionValues: t.optionValues,
                 expanded: prevExpandedByTask.get(t.id) ?? false,
               };
@@ -1140,6 +1227,7 @@ export const useAppStore = create<AppState>()(
                 taskName: t.taskName,
                 customName: t.customName,
                 enabled: t.enabled,
+                enabledByController: t.enabledByController,
                 optionValues: mergedValues,
                 expanded: prevExpandedByTask.get(t.id) ?? false,
               };
@@ -1162,6 +1250,7 @@ export const useAppStore = create<AppState>()(
               taskName: t.taskName,
               customName: t.customName,
               enabled: t.enabled,
+              enabledByController: t.enabledByController,
               optionValues: mergedValues,
               expanded: prevExpandedByTask.get(t.id) ?? false,
             };
@@ -1269,6 +1358,10 @@ export const useAppStore = create<AppState>()(
         confirmBeforeDelete: config.settings.confirmBeforeDelete ?? false,
         maxLogsPerInstance: config.settings.maxLogsPerInstance ?? DEFAULT_MAX_LOGS_PER_INSTANCE,
         autoClearLogsOnLaunch: config.settings.autoClearLogsOnLaunch ?? true,
+        // 默认开启；调试 / 开发版本强制关闭
+        helpImproveSoftware: isTelemetryBlockedByBuild(get().projectInterface)
+          ? false
+          : (config.settings.helpImproveSoftware ?? true),
         customAccents: effectiveCustomAccents,
         selectedController,
         selectedResource,
@@ -1421,20 +1514,41 @@ export const useAppStore = create<AppState>()(
     setSelectedController: (instanceId, controllerName) =>
       set((state) => {
         const pi = state.projectInterface;
-        // 自动取消不兼容任务的勾选
         const updatedInstances = state.instances.map((instance) => {
           if (instance.id !== instanceId)
             return { ...instance, controllerName: instance.controllerName };
 
+          const previousControllerName =
+            state.selectedController[instanceId] ||
+            instance.controllerName ||
+            pi?.controller[0]?.name;
+
           const updatedTasks = instance.selectedTasks.map((task) => {
-            const taskDef = pi?.task.find((t) => t.name === task.taskName);
-            // 如果任务指定了 controller 限制且不包含新控制器，取消勾选
-            if (taskDef?.controller && taskDef.controller.length > 0) {
-              if (!taskDef.controller.includes(controllerName)) {
-                return { ...task, enabled: false };
-              }
-            }
-            return task;
+            const taskDef = resolveCompatTaskDef(pi, task.taskName);
+            const enabledByController =
+              cacheTaskEnabledForController(
+                task.enabledByController,
+                previousControllerName,
+                task.enabled,
+              ) ?? {};
+
+            const enabled = resolveTaskEnabledForController(
+              task,
+              taskDef,
+              previousControllerName,
+              controllerName,
+              enabledByController,
+            );
+
+            return {
+              ...task,
+              enabled,
+              enabledByController: cacheTaskEnabledForController(
+                enabledByController,
+                controllerName,
+                enabled,
+              ),
+            };
           });
 
           return { ...instance, controllerName, selectedTasks: updatedTasks };
@@ -1907,6 +2021,7 @@ export const useAppStore = create<AppState>()(
           taskName: t.taskName,
           customName: t.customName,
           enabled: t.enabled,
+          enabledByController: t.enabledByController ? { ...t.enabledByController } : undefined,
           optionValues: cleanOptionValues(t.optionValues, pi),
           expanded: false,
         })),
@@ -2170,6 +2285,11 @@ function generateConfig(): MxuConfig {
         taskName: t.taskName,
         customName: t.customName,
         enabled: t.enabled,
+        enabledByController: cacheTaskEnabledForController(
+          t.enabledByController,
+          inst.controllerName,
+          t.enabled,
+        ),
         optionValues: t.optionValues,
       })),
       schedulePolicies: inst.schedulePolicies,
@@ -2189,6 +2309,7 @@ function generateConfig(): MxuConfig {
           confirmBeforeDelete: state.confirmBeforeDelete,
           maxLogsPerInstance: state.maxLogsPerInstance,
           autoClearLogsOnLaunch: state.autoClearLogsOnLaunch,
+          helpImproveSoftware: state.helpImproveSoftware,
           windowSize: bl?.windowSize ?? state.windowSize,
           windowPosition: bl?.windowPosition ?? state.windowPosition,
           showOptionPreview: bl?.showOptionPreview ?? state.showOptionPreview,
@@ -2278,6 +2399,7 @@ useAppStore.subscribe(
     confirmBeforeDelete: state.confirmBeforeDelete,
     maxLogsPerInstance: state.maxLogsPerInstance,
     autoClearLogsOnLaunch: state.autoClearLogsOnLaunch,
+    helpImproveSoftware: state.helpImproveSoftware,
     mirrorChyanSettings: state.mirrorChyanSettings,
     proxySettings: state.proxySettings,
     welcomeShownHash: state.welcomeShownHash,

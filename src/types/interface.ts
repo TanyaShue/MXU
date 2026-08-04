@@ -35,6 +35,29 @@ export interface ProjectInterface {
   preset?: PresetItem[];
   /** v2.7.0: Controller 启动前执行的预任务声明 */
   pretask?: PretaskItem | PretaskItem[];
+  /** v2.9.0: 匿名遥测（数据埋点）配置容器 */
+  telemetry?: TelemetryConfig;
+}
+
+/**
+ * v2.9.0: 匿名遥测（数据埋点）配置容器。
+ * 作为遥测配置的统一容器，当前提供 `sentry` 子字段，未来可扩展其他平台。
+ */
+export interface TelemetryConfig {
+  /** 基于 Sentry 的遥测配置 */
+  sentry?: SentryTelemetryConfig;
+}
+
+/** v2.9.0: 基于 Sentry 的遥测配置。 */
+export interface SentryTelemetryConfig {
+  /** Sentry 项目的 DSN。必填；缺省或为空字符串时不启用 Sentry 遥测。 */
+  dsn: string;
+  /** 是否启用性能 / 事务上报（任务生命周期）。可选，默认 true。 */
+  tracing?: boolean;
+  /** 事务采样率，取值 0~1。可选，默认 1.0。 */
+  traces_sample_rate?: number;
+  /** 环境标签（如 production、beta）。可选，缺省由 Client 决定。 */
+  environment?: string;
 }
 
 /**
@@ -111,7 +134,7 @@ export function normalizeAgentConfigs(
   return Array.isArray(agent) ? agent : [agent];
 }
 
-export type ControllerType = 'Adb' | 'Win32' | 'WlRoots' | 'PlayCover' | 'Gamepad';
+export type ControllerType = 'Adb' | 'Win32' | 'MacOS' | 'WlRoots' | 'PlayCover' | 'Gamepad';
 
 export interface ControllerItem {
   name: string;
@@ -129,6 +152,7 @@ export interface ControllerItem {
   option?: string[];
   adb?: Record<string, unknown>;
   win32?: Win32Config;
+  macos?: MacOSConfig;
   wlroots?: WlRootsConfig;
   playcover?: PlayCoverConfig;
   gamepad?: GamepadConfig;
@@ -140,6 +164,12 @@ export interface Win32Config {
   mouse?: string;
   keyboard?: string;
   screencap?: string | string[];
+}
+
+export interface MacOSConfig {
+  title_regex?: string;
+  screencap?: string;
+  input?: string;
 }
 
 export interface WlRootsConfig {
@@ -284,6 +314,8 @@ export interface SelectedTask {
   taskName: string;
   customName?: string; // 用户自定义名称
   enabled: boolean;
+  /** 各控制器独立的勾选状态；enabled 始终表示当前控制器的状态 */
+  enabledByController?: Record<string, boolean>;
   optionValues: Record<string, OptionValue>;
   expanded: boolean;
 }
