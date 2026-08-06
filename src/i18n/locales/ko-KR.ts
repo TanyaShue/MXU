@@ -124,7 +124,7 @@ export default {
     resetWindowLayoutHint: '창 크기를 기본값으로 복원하고 화면 중앙에 배치합니다',
     autoClearLogsOnLaunch: '로그 자동 지우기',
     autoClearLogsOnLaunchHint:
-      '프로젝트를 시작할 때 런타임 로그를 자동으로 지우고 이전 로그 파일을 삭제합니다',
+      '프로젝트를 시작할 때 런타임 로그를 자동으로 지우고 이전 로그 파일과 on_error, vision 폴더의 디버그 스크린샷을 삭제합니다',
   },
 
   // 특수 작업
@@ -347,6 +347,8 @@ export default {
     incompatibleResource: '현재 리소스 팩에서 지원되지 않음',
     hotkeyPlaceholder: '클릭하여 단축키 입력',
     hotkeyCapturing: '키를 누르세요...',
+    expandOptions: '하위 옵션 펼치기',
+    collapseOptions: '하위 옵션 접기',
   },
 
   // 프리셋
@@ -581,6 +583,13 @@ export default {
     restartLater: '나중에',
     restartNow: '지금 재시작',
     webServerAddress: 'Web 서버 주소',
+  },
+
+  // 설정 자동 복구 알림
+  config: {
+    recoveredFromBackup: '설정 파일이 손상되어 {{time}} 백업에서 자동으로 복원했습니다',
+    recoveryFailed:
+      '설정 파일이 손상되었고 사용할 수 있는 백업이 없어 기본 설정으로 초기화했습니다',
   },
 
   // 환영 대화상자

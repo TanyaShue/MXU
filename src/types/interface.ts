@@ -318,6 +318,8 @@ export interface SelectedTask {
   enabledByController?: Record<string, boolean>;
   optionValues: Record<string, OptionValue>;
   expanded: boolean;
+  /** 各选项的子选项折叠状态（optionKey → 是否折叠）；缺省 = 展开，向后兼容 */
+  collapsedOptions?: Record<string, boolean>;
 }
 
 export type OptionValue =
@@ -417,8 +419,14 @@ export interface PresetItem {
 export type FocusDisplayChannel = 'log' | 'toast' | 'notification' | 'dialog' | 'modal';
 
 export interface FocusTemplateObject {
-  content: string;
+  /** 展示内容；缺省时该消息不展示，仅用于配置 trace */
+  content?: string;
   display?: FocusDisplayChannel | FocusDisplayChannel[];
+  /**
+   * v2.9.1: 是否把本次节点结果上传到遥测平台。
+   * 缺省时仅 `Node.PipelineNode.Failed` 视为 true，其余消息视为 false。
+   */
+  trace?: boolean;
 }
 
 export type FocusTemplate = string | FocusTemplateObject;

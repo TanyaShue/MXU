@@ -128,7 +128,7 @@ export default {
     resetWindowLayoutHint: 'Restore window size to default and center the window',
     autoClearLogsOnLaunch: 'Auto-clear Runtime Logs',
     autoClearLogsOnLaunchHint:
-      'Automatically clear runtime logs and delete old log files every time the project is launched',
+      'Automatically clear runtime logs and delete old log files along with debug screenshots in on_error and vision every time the project is launched',
   },
 
   // Special tasks
@@ -356,6 +356,8 @@ export default {
     incompatibleResource: 'Not supported by current resource',
     hotkeyPlaceholder: 'Click to record shortcut',
     hotkeyCapturing: 'Press keys...',
+    expandOptions: 'Expand sub-options',
+    collapseOptions: 'Collapse sub-options',
   },
 
   // Preset
@@ -592,6 +594,14 @@ export default {
     restartLater: 'Later',
     restartNow: 'Restart Now',
     webServerAddress: 'Web Server Address',
+  },
+
+  // Config self-heal notices
+  config: {
+    recoveredFromBackup:
+      'The config file was corrupted and has been restored from the {{time}} backup',
+    recoveryFailed:
+      'The config file was corrupted and no usable backup was found, so it has been reset to defaults',
   },
 
   // Welcome dialog

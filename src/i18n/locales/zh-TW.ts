@@ -121,7 +121,8 @@ export default {
     resetWindowLayout: '重設視窗佈局',
     resetWindowLayoutHint: '將視窗大小恢復為預設值，並置中顯示',
     autoClearLogsOnLaunch: '自動清理運行日誌',
-    autoClearLogsOnLaunchHint: '每次啟動項目時，自動清理運行日誌並刪除舊的日誌檔案',
+    autoClearLogsOnLaunchHint:
+      '每次啟動項目時，自動清理運行日誌，並刪除舊的日誌檔案與 on_error、vision 目錄下的除錯截圖',
   },
 
   // 特殊任務
@@ -340,6 +341,8 @@ export default {
     incompatibleResource: '不支援目前資源包',
     hotkeyPlaceholder: '點擊錄入快捷鍵',
     hotkeyCapturing: '按下快捷鍵...',
+    expandOptions: '展開子選項',
+    collapseOptions: '收起子選項',
   },
 
   // 預設設定
@@ -565,6 +568,12 @@ export default {
     restartLater: '稍後重啟',
     restartNow: '立即重啟',
     webServerAddress: 'Web 服務地址',
+  },
+
+  // 設定自我修復提示
+  config: {
+    recoveredFromBackup: '設定檔已損壞，已自動還原到 {{time}} 的備份',
+    recoveryFailed: '設定檔已損壞且沒有可用的備份，已重設為預設設定',
   },
 
   // 欢迎彈窗

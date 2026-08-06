@@ -122,7 +122,8 @@ export default {
     resetWindowLayout: '重置窗口布局',
     resetWindowLayoutHint: '将窗口大小恢复为默认值，并居中显示',
     autoClearLogsOnLaunch: '自动清理运行日志',
-    autoClearLogsOnLaunchHint: '每次启动项目时，自动清理运行日志并删除旧的日志文件',
+    autoClearLogsOnLaunchHint:
+      '每次启动项目时，自动清理运行日志，并删除旧的日志文件与 on_error、vision 目录下的调试截图',
   },
 
   // 特殊任务
@@ -344,6 +345,8 @@ export default {
     incompatibleResource: '不支持当前资源包',
     hotkeyPlaceholder: '点击录入快捷键',
     hotkeyCapturing: '按下快捷键...',
+    expandOptions: '展开子选项',
+    collapseOptions: '收起子选项',
   },
 
   // 预设配置
@@ -569,6 +572,12 @@ export default {
     restartLater: '稍后重启',
     restartNow: '立即重启',
     webServerAddress: 'Web 服务地址',
+  },
+
+  // 配置自愈提示
+  config: {
+    recoveredFromBackup: '配置文件已损坏，已自动恢复到 {{time}} 的备份',
+    recoveryFailed: '配置文件已损坏且没有可用备份，已重置为默认配置',
   },
 
   // 欢迎弹窗
