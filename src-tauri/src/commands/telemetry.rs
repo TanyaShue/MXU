@@ -85,8 +85,8 @@ struct RunState {
 /// 单个任务最多上报的节点数（失败节点与 `trace` 显式开启的节点共用这份预算）。
 ///
 /// SDK 对单个 Transaction 有 1000 个 Span 的硬上限且超出后静默丢弃，
-/// 这里主动限流是为了不让某个反复失败的长任务挤掉其他任务的 Span。
-const MAX_TRACED_NODES_PER_TASK: u32 = 64;
+/// 这里与该上限对齐，避免本侧更早截断。
+const MAX_TRACED_NODES_PER_TASK: u32 = 1000;
 
 /// 单个 SavedTask 的遥测元数据，由前端在提交任务时给出。
 #[derive(Debug, Clone, Default)]
@@ -683,12 +683,11 @@ fn mark_step_start(instance_id: &str, task_id: i64, node_id: i64) {
 
 /// 为一个需要上报的节点事件建一条 child Span 并立刻收尾。
 ///
-/// Span 名取 `details.name`：MaaFW 的各 `Node.*` 回调里 `name` 与 `focus` 恒来自同一节点
-/// （`Node.PipelineNode.*` / `Node.NextList.*` 是当前搜索 `next` 的节点，其余是被识别 / 执行的
-/// 节点），因此它就是配置了 `trace` 的那个节点，上报名与配置位置才不会错位。
+/// 是否上报由 `focus.trace` 决定（`focus` 与 `details.name` 同节点）。Span 名沿用 2.9.1 前逻辑：
+/// `Node.PipelineNode.*` 若有 `node_details.name`（已命中并执行）优先用之，否则用搜 `next`
+/// 的当前节点 `details.name`。因此 Span 名与配置了 `trace` 的节点在命中场景下可不一致。
 ///
-/// `node_details` 只在命中节点且动作执行完毕后才写入回调，故仅用于区分失败阶段，并作为
-/// `hit_node` 保留失败根因。
+/// `node_details` 亦用于区分失败阶段；有命中时把搜 next 的当前节点写入 `search_node`。
 fn record_node_event(
     instance_id: &str,
     message: &str,
@@ -696,13 +695,10 @@ fn record_node_event(
     node_id: Option<i64>,
     detail: &serde_json::Value,
 ) {
-    let Some(node) = detail
+    let search_node = detail
         .get("name")
         .and_then(|v| v.as_str())
-        .filter(|n| !n.is_empty())
-    else {
-        return;
-    };
+        .filter(|n| !n.is_empty());
     let hit_node = message
         .starts_with("Node.PipelineNode.")
         .then(|| {
@@ -713,6 +709,9 @@ fn record_node_event(
                 .filter(|n| !n.is_empty())
         })
         .flatten();
+    let Some(node) = hit_node.or(search_node) else {
+        return;
+    };
     // 失败落在哪一阶段：命中节点后动作执行失败，还是 next 列表在 reco_timeout 内始终未命中
     let stage = (message == "Node.PipelineNode.Failed").then(|| {
         if hit_node.is_some() {
@@ -777,8 +776,10 @@ fn record_node_event(
         SpanStatus::Ok
     });
     span.set_data("message", message.into());
-    if let Some(hit_node) = hit_node {
-        span.set_data("hit_node", hit_node.into());
+    if hit_node.is_some() {
+        if let Some(search_node) = search_node {
+            span.set_data("search_node", search_node.into());
+        }
     }
     if let Some(stage) = stage {
         span.set_data("stage", stage.into());
