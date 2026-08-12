@@ -31,6 +31,13 @@ pub enum WsEvent {
     /// Maa 实例状态变更（连接状态、任务状态等）
     #[serde(rename = "state-changed")]
     StateChanged { instance_id: String, kind: String },
+
+    /// 后端产生的实例运行日志（对应 Tauri `instance-log` 事件）。
+    #[serde(rename = "instance-log")]
+    InstanceLog {
+        instance_id: String,
+        entry: crate::commands::types::LogEntryDto,
+    },
 }
 
 /// 全局广播器，包装 `broadcast::Sender<WsEvent>`

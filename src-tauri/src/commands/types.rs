@@ -203,6 +203,8 @@ pub struct AllInstanceStates {
 #[derive(Default)]
 pub struct InstanceRuntime {
     pub resource: Option<Resource>,
+    /// 当前实例已经提交加载的资源路径，供独立后台执行器重建 Resource。
+    pub resource_paths: Vec<String>,
     pub controller: Option<Controller>,
     /// 当前控制器的配置（用于 ControllerPool 引用管理）
     pub controller_config: Option<ControllerConfig>,
@@ -326,6 +328,8 @@ pub struct MaaState {
     pub log_buffer: Mutex<LogBuffer>,
     /// 后端统一截图服务（确保每实例只有一份 post_screencap 在运行）
     pub screenshot_service: crate::screenshot_service::ScreenshotService,
+    /// 阴阳师悬赏封印后台监控运行时。
+    pub assist_monitor: crate::commands::assist_monitor::AssistMonitorState,
 }
 
 impl MaaState {

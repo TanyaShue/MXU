@@ -25,11 +25,23 @@ export interface WsAgentOutputPayload {
   line: string;
 }
 
+export interface WsInstanceLogPayload {
+  instance_id: string;
+  entry: {
+    id: string;
+    timestamp: string;
+    type: string;
+    message: string;
+    html?: string;
+  };
+}
+
 export type WsMessage =
   | { type: 'maa-callback'; payload: WsMaaCallbackPayload }
   | { type: 'maa-agent-output'; payload: WsAgentOutputPayload }
   | { type: 'config-changed'; payload: undefined }
-  | { type: 'state-changed'; payload: { instance_id: string; kind: string } };
+  | { type: 'state-changed'; payload: { instance_id: string; kind: string } }
+  | { type: 'instance-log'; payload: WsInstanceLogPayload };
 
 // ============================================================================
 // 订阅者类型
@@ -39,6 +51,7 @@ type MaaCallbackHandler = (message: string, details: string) => void;
 type AgentOutputHandler = (instanceId: string, stream: string, line: string) => void;
 type ConfigChangedHandler = () => void;
 type StateChangedHandler = (instanceId: string, kind: string) => void;
+type InstanceLogHandler = (payload: WsInstanceLogPayload) => void;
 type ConnectionStatusHandler = (connected: boolean) => void;
 
 // ============================================================================
@@ -56,6 +69,7 @@ const maaCallbackHandlers = new Set<MaaCallbackHandler>();
 const agentOutputHandlers = new Set<AgentOutputHandler>();
 const configChangedHandlers = new Set<ConfigChangedHandler>();
 const stateChangedHandlers = new Set<StateChangedHandler>();
+const instanceLogHandlers = new Set<InstanceLogHandler>();
 const connectionStatusHandlers = new Set<ConnectionStatusHandler>();
 
 /** 当前是否处于已连接状态（用于去重通知） */
@@ -181,6 +195,9 @@ function onMessage(event: MessageEvent) {
     case 'state-changed':
       stateChangedHandlers.forEach((h) => h(msg.payload.instance_id, msg.payload.kind));
       break;
+    case 'instance-log':
+      instanceLogHandlers.forEach((h) => h(msg.payload));
+      break;
     default:
       log.debug('收到未知 WS 消息类型:', (msg as { type: string }).type);
   }
@@ -253,6 +270,12 @@ export function onConfigChanged(handler: ConfigChangedHandler): () => void {
 export function onStateChanged(handler: StateChangedHandler): () => void {
   stateChangedHandlers.add(handler);
   return () => stateChangedHandlers.delete(handler);
+}
+
+/** 订阅后端产生的实例运行日志。 */
+export function onInstanceLog(handler: InstanceLogHandler): () => void {
+  instanceLogHandlers.add(handler);
+  return () => instanceLogHandlers.delete(handler);
 }
 
 /** 订阅连接状态变更（connected: true/false），返回取消订阅函数 */

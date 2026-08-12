@@ -31,6 +31,7 @@ import {
   stopInstanceTasksAndExitApp,
 } from '@/services';
 import type { ConfigRecoveryNotice } from '@/services';
+import type { LogEntry, LogType } from '@/stores/types';
 import { loadIconAsDataUrl } from '@/services/contentResolver';
 import * as wsService from '@/services/wsService';
 import {
@@ -161,6 +162,62 @@ function App() {
   // 启用 MAA 回调日志监听
   useMaaCallbackLogger();
   useMaaAgentLogger();
+
+  useEffect(() => {
+    type BackendLogPayload = {
+      instanceId: string;
+      entry: { id: string; timestamp: string; type: string; message: string; html?: string };
+    };
+
+    const appendBackendLog = (instanceId: string, raw: BackendLogPayload['entry']) => {
+      useAppStore.setState((state) => {
+        const logs = state.instanceLogs[instanceId] || [];
+        if (logs.some((entry) => entry.id === raw.id)) return state;
+        const entry: LogEntry = {
+          id: raw.id,
+          timestamp: new Date(raw.timestamp),
+          type: raw.type as LogType,
+          message: raw.message,
+          html: raw.html,
+        };
+        const rawLimit = Number.isFinite(state.maxLogsPerInstance)
+          ? state.maxLogsPerInstance
+          : 2000;
+        const limit = Math.min(10000, Math.max(100, Math.floor(rawLimit)));
+        const instanceLogs = {
+          ...state.instanceLogs,
+          [instanceId]: [...logs, entry].slice(-limit),
+        };
+        persistRuntimeLogs(instanceLogs, state.maxLogsPerInstance);
+        return { instanceLogs };
+      });
+    };
+
+    let dispose: (() => void) | undefined;
+    let cancelled = false;
+    if (isTauri()) {
+      import('@tauri-apps/api/event')
+        .then(({ listen }) =>
+          listen<BackendLogPayload>('instance-log', (event) => {
+            appendBackendLog(event.payload.instanceId, event.payload.entry);
+          }),
+        )
+        .then((unlisten) => {
+          if (cancelled) unlisten();
+          else dispose = unlisten;
+        })
+        .catch((error) => log.warn('注册 instance-log 监听失败:', error));
+    } else {
+      dispose = wsService.onInstanceLog((payload) => {
+        appendBackendLog(payload.instance_id, payload.entry);
+      });
+    }
+
+    return () => {
+      cancelled = true;
+      dispose?.();
+    };
+  }, []);
 
   useEffect(() => {
     void startGlobalCallbackListener().catch(() => {});

@@ -255,6 +255,97 @@ fn create_macos_controller(
     }
 }
 
+/// 根据配置创建一个全新的 Controller，不读取或写入 ControllerPool。
+/// 主实例和后台监控都通过此工厂构造句柄，以保证监控不会复用主句柄。
+pub(crate) fn create_controller_from_config(
+    config: &ControllerConfig,
+) -> Result<Controller, String> {
+    match config {
+        ControllerConfig::Adb {
+            adb_path,
+            address,
+            screencap_methods,
+            input_methods,
+            config,
+            ..
+        } => {
+            let screencap = screencap_methods
+                .parse::<u64>()
+                .map_err(|e| format!("Invalid screencap_methods '{}': {}", screencap_methods, e))?;
+            let input = input_methods
+                .parse::<u64>()
+                .map_err(|e| format!("Invalid input_methods '{}': {}", input_methods, e))?;
+            let agent_path = get_maafw_dir()
+                .map(|p| p.join("MaaAgentBinary").to_string_lossy().to_string())
+                .unwrap_or_else(|_| "./MaaAgentBinary".to_string());
+
+            AdbControllerBuilder::new(adb_path, address)
+                .screencap_methods(
+                    maa_framework::common::AdbScreencapMethod::from_bits_truncate(screencap).bits(),
+                )
+                .input_methods(
+                    maa_framework::common::AdbInputMethod::from_bits_truncate(input).bits(),
+                )
+                .config(config)
+                .agent_path(&agent_path)
+                .build()
+                .map_err(|e| e.to_string())
+        }
+        ControllerConfig::Win32 {
+            handle,
+            screencap_method,
+            mouse_method,
+            keyboard_method,
+            ..
+        } => Controller::new_win32(
+            *handle as *mut std::ffi::c_void,
+            maa_framework::common::Win32ScreencapMethod::from_bits_truncate(*screencap_method)
+                .bits(),
+            maa_framework::common::Win32InputMethod::from_bits_truncate(*mouse_method).bits(),
+            maa_framework::common::Win32InputMethod::from_bits_truncate(*keyboard_method).bits(),
+        )
+        .map_err(|e| e.to_string()),
+        ControllerConfig::MacOS {
+            handle,
+            screencap_method,
+            input_method,
+            ..
+        } => create_macos_controller(*handle, *screencap_method, *input_method),
+        ControllerConfig::WlRoots {
+            wlr_socket_path,
+            use_win32_vk_code,
+            ..
+        } => Controller::new_wlroots_with_vk_code(wlr_socket_path, *use_win32_vk_code)
+            .map_err(|e| e.to_string()),
+        ControllerConfig::PlayCover { address, uuid, .. } => {
+            Controller::new_playcover(address, uuid.as_deref().unwrap_or(""))
+                .map_err(|e| e.to_string())
+        }
+        ControllerConfig::Dummy {
+            display_short_side, ..
+        } => Controller::new_custom(crate::dummy_controller::DummyController::new(
+            display_short_side.unwrap_or(720),
+        ))
+        .map_err(|e| e.to_string()),
+        ControllerConfig::Gamepad {
+            handle,
+            gamepad_type,
+            screencap_method,
+            ..
+        } => {
+            let gamepad_type = match gamepad_type.as_deref() {
+                Some("DualShock4") | Some("DS4") => maa_framework::common::GamepadType::DualShock4,
+                _ => maa_framework::common::GamepadType::Xbox360,
+            };
+            let screencap = screencap_method
+                .map(maa_framework::common::Win32ScreencapMethod::from_bits_truncate)
+                .unwrap_or(maa_framework::common::Win32ScreencapMethod::DXGI_DESKTOP_DUP);
+            Controller::new_gamepad(*handle as *mut std::ffi::c_void, gamepad_type, screencap)
+                .map_err(|e| e.to_string())
+        }
+    }
+}
+
 /// 更新实例的 Controller 并清理不再使用的旧 Pool 条目
 fn update_instance_controller(
     state: &super::types::MaaState,
@@ -285,6 +376,8 @@ fn update_instance_controller(
             info!("ControllerPool: removed unused entry for old config");
         }
     }
+
+    super::assist_monitor::discard_runtime(state, instance_id);
 
     Ok(())
 }
@@ -676,6 +769,7 @@ pub fn destroy_instance_impl(state: &Arc<MaaState>, instance_id: &str) -> Result
     if let Ok(mut log_buffer) = state.log_buffer.lock() {
         log_buffer.clear_instance(instance_id);
     }
+    super::assist_monitor::discard_runtime(state, instance_id);
 
     Ok(())
 }
@@ -745,102 +839,7 @@ pub async fn connect_controller_impl(
             config
         );
 
-        let controller = match &config {
-            ControllerConfig::Adb {
-                adb_path,
-                address,
-                screencap_methods,
-                input_methods,
-                config,
-                ..
-            } => {
-                let screencap = screencap_methods.parse::<u64>().map_err(|e| {
-                    format!("Invalid screencap_methods '{}': {}", screencap_methods, e)
-                })?;
-                let input = input_methods
-                    .parse::<u64>()
-                    .map_err(|e| format!("Invalid input_methods '{}': {}", input_methods, e))?;
-                let agent_path = get_maafw_dir()
-                    .map(|p| p.join("MaaAgentBinary").to_string_lossy().to_string())
-                    .unwrap_or_else(|_| "./MaaAgentBinary".to_string());
-
-                AdbControllerBuilder::new(adb_path, address)
-                    .screencap_methods(
-                        maa_framework::common::AdbScreencapMethod::from_bits_truncate(screencap)
-                            .bits(),
-                    )
-                    .input_methods(
-                        maa_framework::common::AdbInputMethod::from_bits_truncate(input).bits(),
-                    )
-                    .config(config)
-                    .agent_path(&agent_path)
-                    .build()
-                    .map_err(|e| e.to_string())?
-            }
-            ControllerConfig::Win32 {
-                handle,
-                screencap_method,
-                mouse_method,
-                keyboard_method,
-                ..
-            } => {
-                let hwnd = *handle as *mut std::ffi::c_void;
-                Controller::new_win32(
-                    hwnd,
-                    maa_framework::common::Win32ScreencapMethod::from_bits_truncate(
-                        *screencap_method,
-                    )
-                    .bits(),
-                    maa_framework::common::Win32InputMethod::from_bits_truncate(*mouse_method)
-                        .bits(),
-                    maa_framework::common::Win32InputMethod::from_bits_truncate(*keyboard_method)
-                        .bits(),
-                )
-                .map_err(|e| e.to_string())?
-            }
-            ControllerConfig::MacOS {
-                handle,
-                screencap_method,
-                input_method,
-                ..
-            } => create_macos_controller(*handle, *screencap_method, *input_method)?,
-            ControllerConfig::WlRoots {
-                wlr_socket_path,
-                use_win32_vk_code,
-                ..
-            } => Controller::new_wlroots_with_vk_code(wlr_socket_path, *use_win32_vk_code)
-                .map_err(|e| e.to_string())?,
-            ControllerConfig::PlayCover { address, uuid, .. } => {
-                let uuid_str = uuid.as_deref().unwrap_or("");
-                Controller::new_playcover(address, uuid_str).map_err(|e| e.to_string())?
-            }
-            ControllerConfig::Dummy {
-                display_short_side, ..
-            } => {
-                let short = display_short_side.unwrap_or(720);
-                Controller::new_custom(crate::dummy_controller::DummyController::new(short))
-                    .map_err(|e| e.to_string())?
-            }
-            ControllerConfig::Gamepad {
-                handle,
-                gamepad_type,
-                screencap_method,
-                ..
-            } => {
-                let hwnd = *handle as *mut std::ffi::c_void;
-                let gp_type = match gamepad_type.as_deref() {
-                    Some("DualShock4") | Some("DS4") => {
-                        maa_framework::common::GamepadType::DualShock4
-                    }
-                    _ => maa_framework::common::GamepadType::Xbox360,
-                };
-                let screencap = screencap_method
-                    .map(|v| maa_framework::common::Win32ScreencapMethod::from_bits_truncate(v))
-                    .unwrap_or(maa_framework::common::Win32ScreencapMethod::DXGI_DESKTOP_DUP);
-
-                Controller::new_gamepad(hwnd, gp_type, screencap).map_err(|e| e.to_string())?
-            }
-        };
+        let controller = create_controller_from_config(&config)?;
 
         // 注册回调（使用 on_event 抽象，Tauri 命令传入 emit_callback_event，HTTP 处理器传入无操作或 WebSocket 推送）
         let on_event_clone = on_event.clone();
@@ -1039,6 +1038,9 @@ pub fn load_resource_impl(
             Ok(job) => {
                 info!("Posted resource bundle: {} -> id: {}", normalized, job.id);
                 res_ids.push(job.id);
+                if !instance.resource_paths.contains(&normalized) {
+                    instance.resource_paths.push(normalized.clone());
+                }
             }
             Err(e) => {
                 warn!("Failed to post resource bundle {}: {}", normalized, e);
@@ -1120,7 +1122,9 @@ pub fn maa_destroy_resource(
 
     // 销毁旧的资源
     instance.resource = None;
+    instance.resource_paths.clear();
     instance.tasker = None;
+    super::assist_monitor::discard_runtime(&state, &instance_id);
 
     Ok(())
 }

@@ -207,7 +207,14 @@ pub fn run() {
             }
 
             // DLL 加载完成后再注册 maa_state（确保 lib_dir 已设置）
-            app.manage(maa_state);
+            app.manage(maa_state.clone());
+
+            // 仅在阴阳师 interface 下启动独立的悬赏封印监控。
+            commands::assist_monitor::start(
+                app.handle().clone(),
+                maa_state.clone(),
+                app_config.clone(),
+            );
 
             // 初始化系统托盘
             if let Err(e) = tray::init_tray(app.handle()) {

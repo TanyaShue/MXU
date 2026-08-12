@@ -2,11 +2,13 @@
 //!
 //! 提供路径处理和其他通用工具函数
 
-use super::types::{MaaCallbackEvent, MaaState, StateChangedEvent};
+use super::types::{LogEntryDto, MaaCallbackEvent, MaaState, StateChangedEvent};
 use crate::ws_broadcast::{WsBroadcast, WsEvent};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager};
+
+static INSTANCE_LOG_SEQUENCE: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
 
 /// 发送回调事件到前端（Tauri WebView + WebSocket 浏览器客户端）
 pub fn emit_callback_event<S: Into<String>>(app: &AppHandle, message: S, details: S) {
@@ -47,6 +49,45 @@ pub fn emit_state_changed(app: &AppHandle, instance_id: &str, kind: &str) {
     };
     if let Err(e) = app.emit("state-changed", event) {
         log::error!("Failed to emit state-changed: {}", e);
+    }
+}
+
+/// 写入指定实例的运行日志，并实时推送到 Tauri/Web UI 标签页。
+pub fn emit_instance_log(
+    maa_state: &MaaState,
+    app: &AppHandle,
+    instance_id: &str,
+    log_type: &str,
+    message: impl Into<String>,
+) {
+    let entry = LogEntryDto {
+        id: format!(
+            "assist-{}-{}",
+            chrono::Utc::now().timestamp_millis(),
+            INSTANCE_LOG_SEQUENCE.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+        ),
+        timestamp: chrono::Local::now().to_rfc3339(),
+        log_type: log_type.to_string(),
+        message: message.into(),
+        html: None,
+    };
+
+    if let Ok(mut buffer) = maa_state.log_buffer.lock() {
+        buffer.push(instance_id, entry.clone());
+    }
+
+    if let Some(ws) = app.try_state::<Arc<WsBroadcast>>() {
+        ws.send(WsEvent::InstanceLog {
+            instance_id: instance_id.to_string(),
+            entry: entry.clone(),
+        });
+    }
+
+    if let Err(e) = app.emit(
+        "instance-log",
+        serde_json::json!({ "instanceId": instance_id, "entry": entry }),
+    ) {
+        log::error!("Failed to emit instance-log: {}", e);
     }
 }
 

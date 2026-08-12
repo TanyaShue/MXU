@@ -18,6 +18,7 @@ pub mod types;
 pub mod utils;
 
 pub mod app_config;
+pub mod assist_monitor;
 pub mod download;
 pub mod file_ops;
 pub mod maa_agent;
