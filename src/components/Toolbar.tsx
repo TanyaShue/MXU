@@ -867,7 +867,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
 
           onPhaseChange?.('connecting');
 
-          const maxRetries = 3;
+          const maxRetries = 10;
           let connectResult = false;
 
           for (let retry = 0; retry < maxRetries && !connectResult; retry++) {
