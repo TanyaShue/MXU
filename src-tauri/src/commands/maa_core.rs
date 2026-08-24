@@ -1227,6 +1227,14 @@ pub fn run_task_impl(
         task_run_state.overall_status = Some("Running".to_string());
     }
 
+    // MaaYYs 的悬赏识别只跟随这一轮主任务运行一次。
+    drop(instances);
+    super::assist_monitor::start_for_instance(
+        app.clone(),
+        Arc::clone(state),
+        instance_id.to_string(),
+    );
+
     Ok(task_id)
 }
 
@@ -1323,6 +1331,7 @@ pub fn stop_task_impl(state: &MaaState, instance_id: &str) -> Result<(), String>
 
     // 遥测：用户取消，以 cancelled 结束当前运行的 Transaction（幂等，仅首次生效）
     super::telemetry::on_run_cancelled(instance_id);
+    super::assist_monitor::request_stop(state, instance_id);
 
     tasker.post_stop().map_err(|e| e.to_string())?;
     Ok(())

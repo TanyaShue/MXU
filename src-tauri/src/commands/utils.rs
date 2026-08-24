@@ -176,6 +176,8 @@ pub fn handle_task_callback(
     }
     if all_done {
         super::telemetry::on_run_finished(instance_id);
+        // 独立的悬赏识别任务只应持续到主任务队列结束。
+        super::assist_monitor::request_stop(maa_state, instance_id);
     }
 
     // 通知前端刷新状态
