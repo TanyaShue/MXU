@@ -286,7 +286,8 @@ pub fn build_user_agent() -> String {
     let os = std::env::consts::OS;
     let arch = std::env::consts::ARCH;
     let tauri_version = tauri::VERSION;
-    format!("MXU/{} ({}; {}) Tauri/{}", version, os, arch, tauri_version)
+    let user_agent = format!("MXU/{} ({}; {}) Tauri/{}", version, os, arch, tauri_version);
+    user_agent
 }
 
 /// 构建启动程序的 Command
