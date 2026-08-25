@@ -499,6 +499,8 @@ export default {
       // スケジュールメッセージ
       scheduleStarting: 'スケジュール実行を開始 [{{policy}}] {{time}}',
       scheduleCompensating: 'スケジュール補償実行 [{{policy}}] {{time}}（スリープ復帰後の補完）',
+      scheduleRandomGenerated:
+        'スケジュール [{{policy}}] は時間帯 {{range}} 内の今日のランダム開始時刻 {{time}} を生成しました',
       // Agent メッセージ
       agentStarting: 'Agent を起動中...',
       agentStarted: 'Agent が起動しました',
@@ -764,6 +766,12 @@ export default {
     noPoliciesHint: 'スケジュールを追加してタスクを自動実行します',
     repeatDays: '繰り返し日',
     startTime: '開始時刻',
+    timeMode: '時間方式',
+    fixedMode: '固定時刻',
+    randomMode: '時間帯内でランダム',
+    randomHint: '毎日、時間帯に初めて入った時にランダムな開始時刻を生成します',
+    rangesSelected: '個の時間帯',
+    addRange: '時間帯を追加',
     selectDays: '日を選択...',
     addTime: '時刻を追加',
     noWeekdays: '日が選択されていません',

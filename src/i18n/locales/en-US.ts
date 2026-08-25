@@ -501,6 +501,8 @@ export default {
       scheduleStarting: 'Scheduled execution started [{{policy}}] {{time}}',
       scheduleCompensating:
         'Compensated scheduled execution [{{policy}}] {{time}} (triggered after sleep/wake)',
+      scheduleRandomGenerated:
+        "Schedule [{{policy}}] generated today's random start time {{time}} within {{range}}",
       // Agent messages
       agentStarting: 'Agent starting...',
       agentStarted: 'Agent started',
@@ -763,6 +765,12 @@ export default {
     noPoliciesHint: 'Add a schedule to run tasks automatically',
     repeatDays: 'Repeat Days',
     startTime: 'Start Time',
+    timeMode: 'Time mode',
+    fixedMode: 'Fixed time',
+    randomMode: 'Random within range',
+    randomHint: 'A random start time is generated when the window is first entered each day',
+    rangesSelected: 'ranges',
+    addRange: 'Add range',
     selectDays: 'Select days...',
     addTime: 'Add time',
     noWeekdays: 'No days selected',

@@ -1,11 +1,13 @@
 import { useAppStore } from '@/stores/appStore';
 import { loggers } from '@/utils';
+import i18n from '@/i18n';
 import type { Instance } from '@/types/interface';
 
 const log = loggers.task;
 
 const STORAGE_KEY_LAST_CHECK = 'mxu_schedule_lastCheckAt';
 const STORAGE_KEY_TRIGGERED = 'mxu_schedule_triggeredSlots';
+const STORAGE_KEY_RANDOM_TARGETS = 'mxu_schedule_randomTargets';
 
 const CHECK_INTERVAL_MS = 30_000; // 每 30 秒轮询一次（分钟精度下降低到点延迟）
 const SLOT_TTL_MS = 48 * 60 * 60 * 1000; // 触发记录保留 48 小时
@@ -41,6 +43,24 @@ function minuteStart(date: Date): Date {
 
 function buildTriggeredSlotKey(instanceId: string, slotStr: string): string {
   return `${instanceId}:${slotStr}`;
+}
+
+function dateKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function getRandomRanges(policy: NonNullable<Instance['schedulePolicies']>[number]) {
+  if (policy.randomRanges?.length) return policy.randomRanges;
+  if (policy.startTime && policy.endTime) {
+    return [{ startTime: policy.startTime, endTime: policy.endTime }];
+  }
+  return [];
+}
+
+function parseMinutes(value: string | undefined): number | null {
+  if (!value || !/^([01]\d|2[0-3]):[0-5]\d$/.test(value)) return null;
+  const [hours, minutes] = value.split(':').map(Number);
+  return hours * 60 + minutes;
 }
 
 function normalizeTriggeredSlotKey(key: string): string | null {
@@ -95,6 +115,7 @@ class ScheduleService {
   private checking = false;
   private triggerFn: ScheduleTriggerCallback | null = null;
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private announcedRandomTargets = new Set<string>();
 
   private getLastCheckAt(): number {
     const val = localStorage.getItem(STORAGE_KEY_LAST_CHECK);
@@ -126,6 +147,11 @@ class ScheduleService {
           continue;
         }
 
+        if (item.startsWith('random:')) {
+          normalized.add(item);
+          continue;
+        }
+
         const normalizedKey = normalizeTriggeredSlotKey(item);
         if (!normalizedKey) {
           changed = true;
@@ -152,6 +178,39 @@ class ScheduleService {
     localStorage.setItem(STORAGE_KEY_TRIGGERED, JSON.stringify([...slots]));
   }
 
+  private getRandomTargets(): Record<string, number> {
+    try {
+      const raw = JSON.parse(localStorage.getItem(STORAGE_KEY_RANDOM_TARGETS) || '{}');
+      return raw && typeof raw === 'object' ? raw : {};
+    } catch {
+      return {};
+    }
+  }
+
+  private setRandomTargets(targets: Record<string, number>) {
+    localStorage.setItem(STORAGE_KEY_RANDOM_TARGETS, JSON.stringify(targets));
+  }
+
+  private announceRandomTarget(
+    targetKey: string,
+    instanceId: string,
+    policyName: string,
+    rangeLabel: string,
+    targetMinute: number,
+  ) {
+    if (this.announcedRandomTargets.has(targetKey)) return;
+    this.announcedRandomTargets.add(targetKey);
+    const message = i18n.t('logs.messages.scheduleRandomGenerated', {
+      policy: policyName,
+      range: rangeLabel,
+      time: `${String(Math.floor(targetMinute / 60)).padStart(2, '0')}:${String(targetMinute % 60).padStart(2, '0')}`,
+    });
+    // 启动阶段配置日志可能仍在恢复，延迟写入避免被恢复结果覆盖。
+    setTimeout(() => {
+      useAppStore.getState().addLog(instanceId, { type: 'info', message });
+    }, 1200);
+  }
+
   private cleanupOldSlots() {
     const slots = this.getTriggeredSlots();
     if (slots.size === 0) return;
@@ -160,6 +219,10 @@ class ScheduleService {
     const cleaned = new Set<string>();
 
     for (const key of slots) {
+      if (key.startsWith('random:')) {
+        cleaned.add(key);
+        continue;
+      }
       // 当前格式: instanceId:YYYY-MM-DD-HH-mm
       const lastColon = key.lastIndexOf(':');
       const slotStr = key.substring(lastColon + 1);
@@ -278,6 +341,100 @@ class ScheduleService {
       const triggeredSlots = this.getTriggeredSlots();
       let slotsModified = false;
 
+      // 时间段随机策略：首次进入当天窗口时抽取一次目标分钟，并持久化到当天结束。
+      const randomTargets = this.getRandomTargets();
+      let randomTargetsModified = false;
+      const randomTargetEntries = new Map<
+        string,
+        { inst: Instance; policy: NonNullable<Instance['schedulePolicies']>[number]; target: Date }
+      >();
+      for (const inst of useAppStore.getState().instances) {
+        for (const policy of inst.schedulePolicies || []) {
+          if (
+            !policy.enabled ||
+            policy.mode !== 'random' ||
+            !policy.weekdays.includes(now.getDay())
+          )
+            continue;
+          for (const [rangeIndex, range] of getRandomRanges(policy).entries()) {
+            const start = parseMinutes(range.startTime);
+            const end = parseMinutes(range.endTime);
+            if (start === null || end === null || end < start) continue;
+            const todayStart = new Date(
+              now.getFullYear(),
+              now.getMonth(),
+              now.getDate(),
+              Math.floor(start / 60),
+              start % 60,
+            );
+            const todayEnd = new Date(
+              now.getFullYear(),
+              now.getMonth(),
+              now.getDate(),
+              Math.floor(end / 60),
+              end % 60,
+            );
+            if (now < todayStart || now > todayEnd) continue;
+            const targetKey = `${inst.id}:${policy.id}:${dateKey(now)}:${rangeIndex}`;
+            let targetMinute = randomTargets[targetKey];
+            if (!Number.isFinite(targetMinute)) {
+              const lower = Math.max(start, now.getHours() * 60 + now.getMinutes());
+              targetMinute = lower + Math.floor(Math.random() * (end - lower + 1));
+              randomTargets[targetKey] = targetMinute;
+              randomTargetsModified = true;
+              log.info(
+                `[调度器] 为策略 "${policy.name}" 生成今日第 ${rangeIndex + 1} 个随机时间 ${String(Math.floor(targetMinute / 60)).padStart(2, '0')}:${String(targetMinute % 60).padStart(2, '0')}`,
+              );
+            }
+            this.announceRandomTarget(
+              targetKey,
+              inst.id,
+              policy.name,
+              `${range.startTime} - ${range.endTime}`,
+              targetMinute,
+            );
+            const target = new Date(
+              now.getFullYear(),
+              now.getMonth(),
+              now.getDate(),
+              Math.floor(targetMinute / 60),
+              targetMinute % 60,
+            );
+            randomTargetEntries.set(targetKey, { inst, policy, target });
+          }
+        }
+      }
+      if (randomTargetsModified) this.setRandomTargets(randomTargets);
+
+      for (const [targetKey, { inst, policy, target }] of randomTargetEntries) {
+        if (now < target) continue;
+        const triggeredKey = `random:${targetKey}`;
+        if (triggeredSlots.has(triggeredKey)) continue;
+        const freshInst = useAppStore.getState().instances.find((i) => i.id === inst.id);
+        if (!freshInst) continue;
+        if (freshInst.isRunning) {
+          log.info(
+            `[调度器] 实例 "${freshInst.name}" 正在运行，跳过随机时间段策略 "${policy.name}"`,
+          );
+          triggeredSlots.add(triggeredKey);
+          slotsModified = true;
+          continue;
+        }
+        triggeredSlots.add(triggeredKey);
+        slotsModified = true;
+        const targetLabel = `${String(target.getHours()).padStart(2, '0')}:${String(target.getMinutes()).padStart(2, '0')}`;
+        try {
+          await this.triggerFn(
+            freshInst,
+            policy.name,
+            targetLabel,
+            now.getTime() > target.getTime() + CURRENT_SLOT_COMPENSATION_GRACE_MS,
+          );
+        } catch (err) {
+          log.error('[调度器] 随机时间段触发失败:', err);
+        }
+      }
+
       for (const slotDate of slotsToCheck) {
         const weekday = slotDate.getDay();
         const timeStr = `${String(slotDate.getHours()).padStart(2, '0')}:${String(
@@ -300,6 +457,7 @@ class ScheduleService {
           for (const policy of policies) {
             if (!policy.enabled) continue;
             if (!policy.weekdays.includes(weekday)) continue;
+            if (policy.mode === 'random') continue;
             if (!policy.times?.includes(timeStr)) continue;
 
             const slotKey = buildTriggeredSlotKey(inst.id, slotStr);

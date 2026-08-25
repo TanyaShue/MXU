@@ -5,6 +5,11 @@ import type { AccentColor, CustomAccent } from '@/themes/types';
 
 export const DEFAULT_MAX_LOGS_PER_INSTANCE = 500;
 
+export interface ScheduleTimeRange {
+  startTime: string;
+  endTime: string;
+}
+
 // 定时执行策略
 export interface SchedulePolicy {
   id: string;
@@ -12,6 +17,11 @@ export interface SchedulePolicy {
   enabled: boolean; // 是否启用
   weekdays: number[]; // 重复日期 (0-6, 0=周日)
   times: string[]; // 开始时间点 ("HH:mm"，已排序去重)
+  /** undefined/fixed 为固定时间点；random 为时间段内每日随机一次 */
+  mode?: 'fixed' | 'random';
+  startTime?: string;
+  endTime?: string;
+  randomRanges?: ScheduleTimeRange[];
 }
 
 // 保存的任务配置

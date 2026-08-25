@@ -491,6 +491,8 @@ export default {
       // 예약 메시지
       scheduleStarting: '예약 실행 시작 [{{policy}}] {{time}}',
       scheduleCompensating: '예약 보상 실행 [{{policy}}] {{time}} (절전/복귀 후 보완 실행)',
+      scheduleRandomGenerated:
+        '예약 [{{policy}}]이(가) 시간 범위 {{range}}에서 오늘의 무작위 시작 시간 {{time}}을(를) 생성했습니다',
       // Agent 메시지
       agentStarting: 'Agent 시작 중...',
       agentStarted: 'Agent가 시작되었습니다',
@@ -751,6 +753,12 @@ export default {
     noPoliciesHint: '예약을 추가하여 작업을 자동으로 실행하세요',
     repeatDays: '반복 요일',
     startTime: '시작 시간',
+    timeMode: '시간 방식',
+    fixedMode: '고정 시간',
+    randomMode: '시간 범위 내 무작위',
+    randomHint: '매일 시간 범위에 처음 진입할 때 무작위 시작 시간을 생성합니다',
+    rangesSelected: '개 시간 범위',
+    addRange: '시간 범위 추가',
     selectDays: '요일 선택...',
     addTime: '시간 추가',
     noWeekdays: '요일이 선택되지 않았습니다',

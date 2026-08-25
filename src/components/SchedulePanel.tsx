@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useAppStore } from '@/stores/appStore';
 import type { SchedulePolicy } from '@/types/interface';
+import type { ScheduleTimeRange } from '@/types/interface';
 import clsx from 'clsx';
 import { ConfirmDialog } from './ConfirmDialog';
 
@@ -44,6 +45,10 @@ function PolicyCard({
   const { confirmBeforeDelete } = useAppStore();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [timeDraft, setTimeDraft] = useState('08:00');
+  const [rangeDraft, setRangeDraft] = useState<ScheduleTimeRange>({
+    startTime: '09:00',
+    endTime: '14:00',
+  });
 
   const weekdayLabels = t('schedule.weekdays', { returnObjects: true }) as string[];
 
@@ -83,6 +88,14 @@ function PolicyCard({
 
   // 格式化显示已选时间
   const formatTimes = () => {
+    if (policy.mode === 'random') {
+      const ranges = policy.randomRanges?.length
+        ? policy.randomRanges
+        : policy.startTime && policy.endTime
+          ? [{ startTime: policy.startTime, endTime: policy.endTime }]
+          : [];
+      return `${ranges.length} ${t('schedule.rangesSelected')} (${t('schedule.randomMode')})`;
+    }
     if (policy.times.length === 0) return t('schedule.noTimes');
     if (policy.times.length <= 3) {
       return policy.times.join(', ');
@@ -205,67 +218,173 @@ function PolicyCard({
           </div>
 
           {/* 开始时间选择 */}
-          <div className="space-y-1.5">
+          <div className="relative space-y-1.5">
             <label className="text-xs font-medium text-text-secondary">
-              {t('schedule.startTime')}
-              <span className="text-text-muted font-normal ml-1">
-                ({t('schedule.multiSelect')})
-              </span>
+              {t('schedule.timeMode')}
             </label>
-            {/* 时间点添加 */}
-            <div className="flex items-center gap-1.5">
-              <input
-                type="time"
-                value={timeDraft}
-                onChange={(e) => setTimeDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    handleAddTime();
-                  }
-                }}
-                className={clsx(
-                  'flex-1 px-2 py-1.5 text-sm rounded border',
-                  'bg-bg-primary text-text-primary border-border',
-                  'focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/20',
-                )}
-              />
-              <button
-                onClick={handleAddTime}
-                disabled={!TIME_PATTERN.test(timeDraft) || policy.times.includes(timeDraft)}
-                className={clsx(
-                  'flex items-center gap-1 px-2 py-1.5 text-xs rounded border transition-colors',
-                  'border-border text-text-secondary',
-                  'hover:border-accent hover:text-accent',
-                  'disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border disabled:hover:text-text-secondary',
-                )}
-                title={t('schedule.addTime')}
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>{t('schedule.addTime')}</span>
-              </button>
-            </div>
-            {/* 已选时间点 */}
-            {policy.times.length > 0 ? (
-              <div className="flex flex-wrap gap-1">
-                {policy.times.map((time) => (
-                  <span
-                    key={time}
-                    className="flex items-center gap-1 pl-2 pr-1 py-1 text-xs rounded border border-accent bg-accent/10 text-accent"
+            <select
+              value={policy.mode === 'random' ? 'random' : 'fixed'}
+              onChange={(e) =>
+                onUpdate(
+                  e.target.value === 'random'
+                    ? {
+                        mode: 'random',
+                        startTime: policy.startTime || '09:00',
+                        endTime: policy.endTime || '14:00',
+                      }
+                    : { mode: 'fixed' },
+                )
+              }
+              className="w-full appearance-none px-2.5 py-1.5 pr-8 text-sm rounded-md bg-bg-tertiary border border-border text-text-primary focus:outline-none focus:ring-2 focus:ring-accent/40 transition-colors"
+            >
+              <option value="fixed">{t('schedule.fixedMode')}</option>
+              <option value="random">{t('schedule.randomMode')}</option>
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-2.5 mt-[-1.65rem] w-4 h-4 text-text-muted" />
+            {policy.mode === 'random' ? (
+              <>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="time"
+                    value={rangeDraft.startTime}
+                    onChange={(e) =>
+                      setRangeDraft((draft) => ({ ...draft, startTime: e.target.value }))
+                    }
+                    className="flex-1 px-2 py-1.5 text-sm rounded border bg-bg-primary text-text-primary border-border"
+                  />
+                  <span className="text-text-muted">-</span>
+                  <input
+                    type="time"
+                    value={rangeDraft.endTime}
+                    onChange={(e) =>
+                      setRangeDraft((draft) => ({ ...draft, endTime: e.target.value }))
+                    }
+                    className="flex-1 px-2 py-1.5 text-sm rounded border bg-bg-primary text-text-primary border-border"
+                  />
+                  <button
+                    onClick={() => {
+                      if (
+                        !TIME_PATTERN.test(rangeDraft.startTime) ||
+                        !TIME_PATTERN.test(rangeDraft.endTime)
+                      )
+                        return;
+                      if (rangeDraft.startTime >= rangeDraft.endTime) return;
+                      const ranges = policy.randomRanges?.length
+                        ? policy.randomRanges
+                        : policy.startTime && policy.endTime
+                          ? [{ startTime: policy.startTime, endTime: policy.endTime }]
+                          : [];
+                      if (
+                        ranges.some(
+                          (range) =>
+                            range.startTime === rangeDraft.startTime &&
+                            range.endTime === rangeDraft.endTime,
+                        )
+                      )
+                        return;
+                      onUpdate({
+                        randomRanges: [...ranges, rangeDraft],
+                        startTime: undefined,
+                        endTime: undefined,
+                      });
+                    }}
+                    className="p-1.5 rounded border border-border text-text-secondary hover:border-accent hover:text-accent"
+                    title={t('schedule.addRange')}
                   >
-                    {time}
-                    <button
-                      onClick={() => handleRemoveTime(time)}
-                      className="p-0.5 rounded hover:bg-accent/20"
-                      title={t('common.delete')}
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {(policy.randomRanges?.length
+                    ? policy.randomRanges
+                    : policy.startTime && policy.endTime
+                      ? [{ startTime: policy.startTime, endTime: policy.endTime }]
+                      : []
+                  ).map((range, index) => (
+                    <span
+                      key={`${range.startTime}-${range.endTime}-${index}`}
+                      className="flex items-center gap-1 pl-2 pr-1 py-1 text-xs rounded border border-accent bg-accent/10 text-accent"
                     >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </span>
-                ))}
-              </div>
+                      {range.startTime} - {range.endTime}
+                      <button
+                        onClick={() =>
+                          onUpdate({
+                            randomRanges: (policy.randomRanges || []).filter((_, i) => i !== index),
+                            startTime: undefined,
+                            endTime: undefined,
+                          })
+                        }
+                        className="p-0.5 rounded hover:bg-accent/20"
+                        title={t('common.delete')}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <p className="text-xs text-text-muted">{t('schedule.randomHint')}</p>
+              </>
             ) : (
-              <p className="text-xs text-text-muted">{t('schedule.noTimes')}</p>
+              <>
+                <div className="text-xs text-text-muted">
+                  {t('schedule.startTime')} ({t('schedule.multiSelect')})
+                </div>
+                {/* 时间点添加 */}
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="time"
+                    value={timeDraft}
+                    onChange={(e) => setTimeDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddTime();
+                      }
+                    }}
+                    className={clsx(
+                      'flex-1 px-2 py-1.5 text-sm rounded border',
+                      'bg-bg-primary text-text-primary border-border',
+                      'focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent/20',
+                    )}
+                  />
+                  <button
+                    onClick={handleAddTime}
+                    disabled={!TIME_PATTERN.test(timeDraft) || policy.times.includes(timeDraft)}
+                    className={clsx(
+                      'flex items-center gap-1 px-2 py-1.5 text-xs rounded border transition-colors',
+                      'border-border text-text-secondary',
+                      'hover:border-accent hover:text-accent',
+                      'disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-border disabled:hover:text-text-secondary',
+                    )}
+                    title={t('schedule.addTime')}
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>{t('schedule.addTime')}</span>
+                  </button>
+                </div>
+                {/* 已选时间点 */}
+                {policy.times.length > 0 ? (
+                  <div className="flex flex-wrap gap-1">
+                    {policy.times.map((time) => (
+                      <span
+                        key={time}
+                        className="flex items-center gap-1 pl-2 pr-1 py-1 text-xs rounded border border-accent bg-accent/10 text-accent"
+                      >
+                        {time}
+                        <button
+                          onClick={() => handleRemoveTime(time)}
+                          className="p-0.5 rounded hover:bg-accent/20"
+                          title={t('common.delete')}
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-text-muted">{t('schedule.noTimes')}</p>
+                )}
+              </>
             )}
             <p className="text-xs text-text-muted">
               {t('schedule.timeZoneHint')} (

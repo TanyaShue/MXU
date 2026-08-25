@@ -84,6 +84,14 @@ function normalizeSchedulePolicies(inst: {
     enabled: policy.enabled,
     weekdays: policy.weekdays,
     times: Array.isArray(policy.times) ? policy.times : [],
+    mode: policy.mode === 'random' ? 'random' : 'fixed',
+    startTime: policy.startTime,
+    endTime: policy.endTime,
+    randomRanges: Array.isArray(policy.randomRanges)
+      ? policy.randomRanges
+      : policy.startTime && policy.endTime
+        ? [{ startTime: policy.startTime, endTime: policy.endTime }]
+        : undefined,
   }));
 }
 

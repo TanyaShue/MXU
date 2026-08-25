@@ -484,6 +484,8 @@ export default {
       // 定时任务消息
       scheduleStarting: '定时执行开始 [{{policy}}] {{time}}',
       scheduleCompensating: '定时补偿执行 [{{policy}}] {{time}}（睡眠/恢复后补触发）',
+      scheduleRandomGenerated:
+        '定时策略 [{{policy}}] 已在时间段 {{range}} 内生成今日随机启动时间: {{time}}',
       // Agent 消息
       agentStarting: 'Agent 正在启动...',
       agentStarted: 'Agent 已启动',
@@ -749,6 +751,12 @@ export default {
     noPoliciesHint: '添加策略以自动执行任务',
     repeatDays: '重复日期',
     startTime: '开始时间',
+    timeMode: '时间方式',
+    fixedMode: '固定时间点',
+    randomMode: '时间段内随机',
+    randomHint: '每天首次进入时间段时生成一个随机启动时间',
+    rangesSelected: '个时间段',
+    addRange: '添加时间段',
     selectDays: '选择日期...',
     addTime: '添加时间',
     noWeekdays: '未选择日期',
