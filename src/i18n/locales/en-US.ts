@@ -133,6 +133,13 @@ export default {
 
   // Special tasks
   specialTask: {
+    random: {
+      label: '🔀 Random Tasks',
+      startLabel: 'Start Random Tasks',
+      endLabel: 'End Random Tasks',
+      description: 'Tasks between the start and end markers run in random order; groups are independent.',
+      invalidRange: 'Invalid random task range. Check that markers are paired and not nested.',
+    },
     sleep: {
       label: '⏳ Countdown',
       optionLabel: 'Countdown Settings',
@@ -255,6 +262,7 @@ export default {
 
   // Task item
   taskItem: {
+    executionMarker: 'Execution marker',
     options: 'Options',
     noOptions: 'No configurable options',
     enabled: 'Enabled',

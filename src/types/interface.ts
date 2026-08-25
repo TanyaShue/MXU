@@ -320,6 +320,8 @@ export interface SelectedTask {
   expanded: boolean;
   /** 各选项的子选项折叠状态（optionKey → 是否折叠）；缺省 = 展开，向后兼容 */
   collapsedOptions?: Record<string, boolean>;
+  /** 随机任务区间标识，开始/结束标记共享同一值。 */
+  randomGroupId?: string;
 }
 
 export type OptionValue =

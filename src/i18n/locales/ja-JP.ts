@@ -131,6 +131,13 @@ export default {
 
   // 特殊タスク
   specialTask: {
+    random: {
+      label: '🔀 ランダムタスク',
+      startLabel: 'ランダム開始',
+      endLabel: 'ランダム終了',
+      description: '開始と終了マーカーの間のタスクはランダム順で実行されます。各グループは独立しています。',
+      invalidRange: 'ランダムタスク範囲が無効です。マーカーが対になっていて入れ子になっていないか確認してください。',
+    },
     sleep: {
       label: '⏳ カウントダウン',
       optionLabel: 'カウントダウン設定',
@@ -250,6 +257,7 @@ export default {
 
   // タスク項目
   taskItem: {
+    executionMarker: '実行構造マーカー',
     options: 'オプション設定',
     noOptions: '設定可能なオプションはありません',
     enabled: '有効',

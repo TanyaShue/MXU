@@ -129,6 +129,13 @@ export default {
 
   // 특수 작업
   specialTask: {
+    random: {
+      label: '🔀 무작위 작업',
+      startLabel: '무작위 작업 시작',
+      endLabel: '무작위 작업 종료',
+      description: '시작과 종료 마커 사이의 작업은 무작위 순서로 실행되며, 각 그룹은 독립적입니다.',
+      invalidRange: '무작위 작업 범위가 올바르지 않습니다. 마커가 쌍으로 있고 중첩되지 않았는지 확인하세요.',
+    },
     sleep: {
       label: '⏳ 카운트다운',
       optionLabel: '카운트다운 설정',
@@ -246,6 +253,7 @@ export default {
 
   // 작업 항목
   taskItem: {
+    executionMarker: '실행 구조 마커',
     options: '옵션 설정',
     noOptions: '설정 가능한 옵션이 없습니다',
     enabled: '활성화됨',

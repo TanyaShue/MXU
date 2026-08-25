@@ -28,6 +28,7 @@ export interface SchedulePolicy {
 export interface SavedTask {
   id: string;
   taskName: string; // 对应 interface 中的 task.name
+  randomGroupId?: string;
   customName?: string; // 用户自定义名称
   enabled: boolean;
   /** 各控制器独立的勾选状态（旧配置中不存在时按 enabled 初始化） */

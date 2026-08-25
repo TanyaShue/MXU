@@ -188,6 +188,8 @@ export interface AppState {
       switchOverrides?: Record<string, boolean>;
     },
   ) => string;
+  /** 添加随机任务区间（开始/结束标记） */
+  addRandomTaskRange: (instanceId: string) => { startId: string; endId: string };
   removeTaskFromInstance: (instanceId: string, taskId: string) => void;
   reorderTasks: (instanceId: string, oldIndex: number, newIndex: number) => void;
   toggleTaskEnabled: (instanceId: string, taskId: string) => void;

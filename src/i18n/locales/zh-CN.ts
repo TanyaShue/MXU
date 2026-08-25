@@ -128,6 +128,13 @@ export default {
 
   // 特殊任务
   specialTask: {
+    random: {
+      label: '🔀 随机任务',
+      startLabel: '开始随机任务',
+      endLabel: '结束随机任务',
+      description: '开始和结束任务之间的任务将随机执行',
+      invalidRange: '随机任务区间无效，请检查开始和结束标记是否成对且未嵌套',
+    },
     sleep: {
       label: '⏳ 倒计时',
       optionLabel: '倒计时设置',
@@ -245,6 +252,7 @@ export default {
 
   // 任务项
   taskItem: {
+    executionMarker: '执行结构标记',
     options: '配置选项',
     noOptions: '无可配置选项',
     enabled: '已启用',

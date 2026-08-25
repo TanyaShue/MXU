@@ -334,10 +334,28 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
   const instance = instances.find((i) => i.id === instanceId);
   const isInstanceRunning = instance?.isRunning || false;
 
+  const randomGroup = useMemo(() => {
+    const tasks = instance?.selectedTasks ?? [];
+    let groupIndex = -1;
+    let open = false;
+    for (const item of tasks) {
+      if (item.taskName === '__MXU_RANDOM_START__') {
+        groupIndex += 1;
+        open = true;
+      }
+      if (item.id === task.id) {
+        return { index: open ? groupIndex : -1, inside: open };
+      }
+      if (item.taskName === '__MXU_RANDOM_END__') open = false;
+    }
+    return { index: -1, inside: false };
+  }, [instance?.selectedTasks, task.id]);
+
   // 获取任务定义 - 支持 MXU 内置特殊任务与 pretask 前置任务
   const isMxuTask = isMxuSpecialTask(task.taskName);
   const isPretask = isPretaskName(task.taskName);
   const mxuSpecialTask = isMxuTask ? getMxuSpecialTask(task.taskName) : null;
+  const isExecutionMarker = !!mxuSpecialTask?.executionMarker;
   const pretaskItem = isPretask ? getPretaskItem(projectInterface, task.taskName) : undefined;
   const taskDef = isMxuTask
     ? mxuSpecialTask?.taskDef
@@ -527,7 +545,11 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
       ? t(taskDef.label || taskDef.name)
       : resolveI18nText(taskDef.label, langKey) || taskDef.name
     : '';
-  const displayName = task.customName || originalLabel;
+  const baseDisplayName = task.customName || originalLabel;
+  const displayName =
+    isExecutionMarker && randomGroup.index > 0
+      ? `${baseDisplayName}-${randomGroup.index + 1}`
+      : baseDisplayName;
   const hasOptions = !!taskDef?.option && taskDef.option.length > 0;
   // 判断是否有描述内容（包括正在加载的情况）
   const hasDescription = !!resolvedDescription.html || resolvedDescription.loading;
@@ -632,7 +654,7 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
 
   const handleNameClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isInstanceRunning || isIncompatible) return;
+    if (isInstanceRunning || isIncompatible || isExecutionMarker) return;
     toggleTaskEnabled(instanceId, task.id);
   };
 
@@ -782,6 +804,7 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
       onContextMenu={handleContextMenu}
       className={clsx(
         'group bg-bg-secondary rounded-lg border border-border transition-shadow relative',
+        randomGroup.inside && !isExecutionMarker && 'ml-3',
         isDragging && 'shadow-lg opacity-50',
         taskRunStatus === 'running' && 'task-item-running',
         isAnimating && 'animate-task-slide-in',
@@ -818,17 +841,25 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
         <label
           className={clsx(
             'flex items-center relative',
-            isInstanceRunning || isIncompatible
+            isInstanceRunning || isIncompatible || isExecutionMarker
               ? 'cursor-not-allowed opacity-50'
               : 'cursor-pointer',
           )}
-          title={isIncompatible ? incompatibleReason : undefined}
+          title={
+            isIncompatible
+              ? incompatibleReason
+              : isExecutionMarker
+                ? t('specialTask.random.description')
+                : undefined
+          }
         >
           <input
             type="checkbox"
             checked={task.enabled}
-            onChange={() => !isIncompatible && toggleTaskEnabled(instanceId, task.id)}
-            disabled={isInstanceRunning || isIncompatible}
+            onChange={() =>
+              !isIncompatible && !isExecutionMarker && toggleTaskEnabled(instanceId, task.id)
+            }
+            disabled={isInstanceRunning || isIncompatible || isExecutionMarker}
             className="w-4 h-4 rounded border-border-strong accent-accent disabled:cursor-not-allowed"
           />
           {/* 不兼容警告图标 */}
@@ -853,7 +884,9 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
               <div
                 className={clsx(
                   'flex items-center gap-1 min-w-0 overflow-hidden',
-                  isInstanceRunning || isIncompatible ? 'cursor-not-allowed' : 'cursor-pointer',
+                  isInstanceRunning || isIncompatible || isExecutionMarker
+                    ? 'cursor-not-allowed'
+                    : 'cursor-pointer',
                 )}
                 onClick={handleNameClick}
                 title={t('taskItem.clickToToggle')}
@@ -866,6 +899,11 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
                 >
                   {displayName}
                 </span>
+                {mxuSpecialTask?.executionMarker === 'random-start' && (
+                  <span className="text-[11px] text-accent/80 truncate">
+                    {t('specialTask.random.description')}
+                  </span>
+                )}
                 {task.customName && (
                   <span className="min-w-0 truncate text-xs text-text-muted">
                     ({originalLabel})

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
 import {
   LayoutGrid,
   Monitor,
@@ -37,7 +38,11 @@ import { getInterfaceLangKey } from '@/i18n';
 import { getMxuSpecialTask } from '@/types/specialTasks';
 import { isTaskCompatible } from '@/stores/helpers';
 import { isPretaskName, getPretaskItem, buildPretaskArgs, buildPretaskDef } from '@/types/pretasks';
-import { splitTasksIntoThreeSegments } from '@/utils/taskSegmentation';
+import {
+  splitTasksIntoThreeSegments,
+  resolveRandomTaskOrder,
+  RandomTaskRangeError,
+} from '@/utils/taskSegmentation';
 import { startGlobalCallbackListener } from '@/components/connection/callbackCache';
 import { stopInstanceTasks } from '@/services/taskStopService';
 import { buildPiEnvVars } from '@/utils/piEnv';
@@ -248,7 +253,22 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
             }
           }
 
-          const runnableTasks = enabledTasks
+          let orderedTasks: typeof enabledTasks;
+          try {
+            orderedTasks = resolveRandomTaskOrder(
+              enabledTasks.filter((task) => !isPretaskName(task.taskName)),
+            );
+          } catch (err) {
+            if (err instanceof RandomTaskRangeError) {
+              log.error(`[${instanceName}] 随机任务区间无效: ${err.message}`);
+              toast.error(t('specialTask.random.invalidRange'));
+              setIsStarting(false);
+              return;
+            }
+            throw err;
+          }
+
+          const runnableTasks = orderedTasks
             .map((selectedTask) => {
               // pretask 不进入 Tasker 队列，已在连接 Controller 前单独执行
               if (isPretaskName(selectedTask.taskName)) return null;

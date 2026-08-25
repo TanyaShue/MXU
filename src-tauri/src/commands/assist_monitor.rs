@@ -16,7 +16,7 @@ use maa_framework::tasker::Tasker;
 
 use super::maa_core::create_controller_from_config;
 use super::types::{ControllerConfig, MaaState};
-use super::utils::{emit_instance_log, normalize_path};
+use super::utils::{emit_callback_event, emit_instance_log, normalize_path};
 
 const PROJECT_NAME: &str = "MaaYYs";
 const ENTRY: &str = "开始识别悬赏封印委托";
@@ -81,6 +81,7 @@ pub fn start_for_instance(app: tauri::AppHandle, maa_state: Arc<MaaState>, insta
     }
 
     let Some(snapshot) = snapshot_instance(&maa_state, &instance_id) else {
+        log::debug!("[assist-monitor] instance {} is not ready", instance_id);
         return;
     };
     let stop_requested = Arc::new(AtomicBool::new(false));
@@ -99,7 +100,14 @@ pub fn start_for_instance(app: tauri::AppHandle, maa_state: Arc<MaaState>, insta
     }
 
     tauri::async_runtime::spawn(async move {
-        let result = process_instance(&snapshot, stop_requested).await;
+        let result = process_instance(
+            &snapshot,
+            stop_requested,
+            app.clone(),
+            maa_state.clone(),
+            &instance_id,
+        )
+        .await;
         match result {
             Ok(()) => log::info!("[assist-monitor] instance {} stopped", instance_id),
             Err(error) => log::warn!(
@@ -107,6 +115,15 @@ pub fn start_for_instance(app: tauri::AppHandle, maa_state: Arc<MaaState>, insta
                 instance_id,
                 error
             ),
+        }
+        if let Err(error) = &result {
+            emit_instance_log(
+                &maa_state,
+                &app,
+                &instance_id,
+                "error",
+                format!("[悬赏封印监控]{}", error),
+            );
         }
         clear_active(&maa_state, &instance_id);
         emit_instance_log(
@@ -141,8 +158,26 @@ fn snapshot_instance(maa_state: &MaaState, instance_id: &str) -> Option<Instance
 async fn process_instance(
     snapshot: &InstanceSnapshot,
     stop_requested: Arc<AtomicBool>,
+    app: tauri::AppHandle,
+    maa_state: Arc<MaaState>,
+    instance_id: &str,
 ) -> Result<(), String> {
-    let runtime = take_or_create_runtime(snapshot, &stop_requested).await?;
+    let runtime = take_or_create_runtime(
+        snapshot,
+        &stop_requested,
+        app.clone(),
+        maa_state.clone(),
+        instance_id.to_string(),
+    )
+    .await?;
+
+    emit_instance_log(
+        &maa_state,
+        &app,
+        instance_id,
+        "info",
+        format!("[悬赏封印监控]开始执行{}", ENTRY),
+    );
 
     let result = async {
         if stop_requested.load(Ordering::SeqCst) {
@@ -175,12 +210,30 @@ async fn process_instance(
 async fn take_or_create_runtime(
     snapshot: &InstanceSnapshot,
     stop_requested: &AtomicBool,
+    app: tauri::AppHandle,
+    maa_state: Arc<MaaState>,
+    instance_id: String,
 ) -> Result<AssistRuntime, String> {
     if stop_requested.load(Ordering::SeqCst) {
         return Err("任务已停止".to_string());
     }
 
     let controller = create_controller_from_config(&snapshot.controller_config)?;
+    let app_for_controller = app.clone();
+    let state_for_controller = maa_state.clone();
+    let instance_for_controller = instance_id.clone();
+    controller
+        .add_sink(move |msg, detail| {
+            emit_callback_event(&app_for_controller, msg, detail);
+            emit_instance_log(
+                &state_for_controller,
+                &app_for_controller,
+                &instance_for_controller,
+                "info",
+                format!("[悬赏封印监控][Controller] {}: {}", msg, detail),
+            );
+        })
+        .map_err(|e| format!("独立控制器 sink 注册失败：{}", e))?;
     let display_short_side = match &snapshot.controller_config {
         ControllerConfig::Adb {
             display_short_side, ..
@@ -220,6 +273,21 @@ async fn take_or_create_runtime(
     .await?;
 
     let resource = Resource::new().map_err(|e| format!("独立资源创建失败：{}", e))?;
+    let app_for_resource = app.clone();
+    let state_for_resource = maa_state.clone();
+    let instance_for_resource = instance_id.clone();
+    resource
+        .add_sink(move |msg, detail| {
+            emit_callback_event(&app_for_resource, msg, detail);
+            emit_instance_log(
+                &state_for_resource,
+                &app_for_resource,
+                &instance_for_resource,
+                "info",
+                format!("[悬赏封印监控][Resource] {}: {}", msg, detail),
+            );
+        })
+        .map_err(|e| format!("独立资源 sink 注册失败：{}", e))?;
     for path in &snapshot.resource_paths {
         let normalized = normalize_path(path).to_string_lossy().to_string();
         let job = resource
@@ -229,6 +297,36 @@ async fn take_or_create_runtime(
     }
 
     let tasker = Tasker::new().map_err(|e| format!("独立 Tasker 创建失败：{}", e))?;
+    let app_for_tasker = app.clone();
+    let state_for_tasker = maa_state.clone();
+    let instance_for_tasker = instance_id.clone();
+    tasker
+        .add_sink(move |msg, detail| {
+            emit_callback_event(&app_for_tasker, msg, detail);
+            emit_instance_log(
+                &state_for_tasker,
+                &app_for_tasker,
+                &instance_for_tasker,
+                "info",
+                format!("[悬赏封印监控][Tasker] {}: {}", msg, detail),
+            );
+        })
+        .map_err(|e| format!("独立 Tasker sink 注册失败：{}", e))?;
+    let app_for_context = app.clone();
+    let state_for_context = maa_state.clone();
+    let instance_for_context = instance_id.clone();
+    tasker
+        .add_context_sink(move |msg, detail| {
+            emit_callback_event(&app_for_context, msg, detail);
+            emit_instance_log(
+                &state_for_context,
+                &app_for_context,
+                &instance_for_context,
+                "info",
+                format!("[悬赏封印监控][Context] {}: {}", msg, detail),
+            );
+        })
+        .map_err(|e| format!("独立 Tasker context sink 注册失败：{}", e))?;
     tasker
         .bind(&resource, &controller)
         .map_err(|e| format!("独立 Tasker 绑定失败：{}", e))?;

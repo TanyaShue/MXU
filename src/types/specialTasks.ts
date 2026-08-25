@@ -33,11 +33,20 @@ export interface MxuSpecialTaskDefinition {
     | 'Play'
     | 'MessageSquare'
     | 'XCircle'
-    | 'Power';
+    | 'Power'
+    | 'Shuffle';
   /** 图标颜色 CSS 类 */
   iconColorClass: string;
   /** 是否绕过截图/识别流程的非视觉任务 */
   skipScreenshot: boolean;
+  /** 仅用于前端执行结构，不会提交给 MaaFramework。 */
+  executionMarker?: 'random-start' | 'random-end';
+  /** 添加面板中用于复合动作的显示文本。 */
+  addLabel?: string;
+  /** 点击添加时，同时追加的配对标记任务名。 */
+  addPairTaskName?: string;
+  /** 是否在添加面板中显示，默认 true。 */
+  visibleInAddPanel?: boolean;
 }
 
 // MXU_SLEEP 特殊任务常量（保留向后兼容）
@@ -74,6 +83,10 @@ export const MXU_KILLPROC_ACTION = 'MXU_KILLPROC_ACTION';
 export const MXU_POWER_TASK_NAME = '__MXU_POWER__';
 export const MXU_POWER_ENTRY = 'MXU_POWER';
 export const MXU_POWER_ACTION = 'MXU_POWER_ACTION';
+
+// MXU_RANDOM 结构标记（仅前端执行时生效）
+export const MXU_RANDOM_START_TASK_NAME = '__MXU_RANDOM_START__';
+export const MXU_RANDOM_END_TASK_NAME = '__MXU_RANDOM_END__';
 
 // 这类特殊任务不依赖游戏画面，固定 target 可避免在窗口消失后被空识别框拦截。
 const MXU_NON_VISUAL_CUSTOM_TARGET: [number, number, number, number] = [0, 0, 1, 1];
@@ -534,6 +547,37 @@ const MXU_POWER_OPTION_DEF_INTERNAL: SelectOption = {
  * 排序（不含"前置任务"，前置任务在 AddTaskPanel 中独立渲染）：
  */
 export const MXU_SPECIAL_TASKS: Record<string, MxuSpecialTaskDefinition> = {
+  [MXU_RANDOM_START_TASK_NAME]: {
+    taskName: MXU_RANDOM_START_TASK_NAME,
+    entry: MXU_RANDOM_START_TASK_NAME,
+    taskDef: {
+      name: MXU_RANDOM_START_TASK_NAME,
+      label: 'specialTask.random.startLabel',
+      entry: MXU_RANDOM_START_TASK_NAME,
+    },
+    optionDefs: {},
+    iconName: 'Shuffle',
+    iconColorClass: 'text-accent/80',
+    skipScreenshot: true,
+    executionMarker: 'random-start',
+    addLabel: 'specialTask.random.label',
+    addPairTaskName: MXU_RANDOM_END_TASK_NAME,
+  },
+  [MXU_RANDOM_END_TASK_NAME]: {
+    taskName: MXU_RANDOM_END_TASK_NAME,
+    entry: MXU_RANDOM_END_TASK_NAME,
+    taskDef: {
+      name: MXU_RANDOM_END_TASK_NAME,
+      label: 'specialTask.random.endLabel',
+      entry: MXU_RANDOM_END_TASK_NAME,
+    },
+    optionDefs: {},
+    iconName: 'Shuffle',
+    iconColorClass: 'text-accent/80',
+    skipScreenshot: true,
+    executionMarker: 'random-end',
+    visibleInAddPanel: false,
+  },
   [MXU_SLEEP_TASK_NAME]: {
     taskName: MXU_SLEEP_TASK_NAME,
     entry: MXU_SLEEP_ENTRY,

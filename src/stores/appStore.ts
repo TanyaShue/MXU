@@ -42,6 +42,7 @@ import {
 import { decryptCdk, encryptCdk } from '@/utils/cdkCrypto';
 import { loggers } from '@/utils/logger';
 import { findSwitchCase } from '@/utils/optionHelpers';
+import { validateRandomTaskLayout } from '@/utils/taskSegmentation';
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 
@@ -713,6 +714,40 @@ export const useAppStore = create<AppState>()(
       return newTask.id;
     },
 
+    addRandomTaskRange: (instanceId: string) => {
+      const startId = generateId();
+      const endId = generateId();
+      const randomGroupId = generateId();
+      const startTask: SelectedTask = {
+        id: startId,
+        taskName: '__MXU_RANDOM_START__',
+        enabled: true,
+        optionValues: {},
+        expanded: false,
+        randomGroupId,
+      };
+      const endTask: SelectedTask = {
+        id: endId,
+        taskName: '__MXU_RANDOM_END__',
+        enabled: true,
+        optionValues: {},
+        expanded: false,
+        randomGroupId,
+      };
+
+      set((state) => ({
+        instances: state.instances.map((i) =>
+          i.id === instanceId
+            ? { ...i, selectedTasks: [...i.selectedTasks, startTask, endTask] }
+            : i,
+        ),
+        lastAddedTaskId: endId,
+        animatingTaskIds: [...state.animatingTaskIds, startId, endId],
+      }));
+
+      return { startId, endId };
+    },
+
     removeTaskFromInstance: (instanceId, taskId) =>
       set((state) => ({
         instances: state.instances.map((i) =>
@@ -736,6 +771,8 @@ export const useAppStore = create<AppState>()(
           const tasks = [...i.selectedTasks];
           const [removed] = tasks.splice(oldIndex, 1);
           tasks.splice(newIndex, 0, removed);
+
+          if (!validateRandomTaskLayout(tasks)) return i;
 
           return { ...i, selectedTasks: tasks };
         }),
@@ -2049,6 +2086,7 @@ export const useAppStore = create<AppState>()(
         selectedTasks: closedInstance.tasks.map((t) => ({
           id: generateId(),
           taskName: t.taskName,
+          randomGroupId: t.randomGroupId,
           customName: t.customName,
           enabled: t.enabled,
           enabledByController: t.enabledByController ? { ...t.enabledByController } : undefined,
@@ -2313,6 +2351,7 @@ function generateConfig(): MxuConfig {
       tasks: inst.selectedTasks.map((t) => ({
         id: t.id,
         taskName: t.taskName,
+        randomGroupId: t.randomGroupId,
         customName: t.customName,
         enabled: t.enabled,
         enabledByController: cacheTaskEnabledForController(

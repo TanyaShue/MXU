@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
 import {
   CheckSquare,
   Square,
@@ -28,7 +29,12 @@ import {
   buildPretaskArgs,
   resolveCompatTaskDef,
 } from '@/types/pretasks';
-import { splitTasksIntoThreeSegments, shouldSkipScreenshot } from '@/utils/taskSegmentation';
+import {
+  splitTasksIntoThreeSegments,
+  shouldSkipScreenshot,
+  resolveRandomTaskOrder,
+  RandomTaskRangeError,
+} from '@/utils/taskSegmentation';
 import type { TaskConfig, ControllerConfig } from '@/types/maa';
 import { normalizeAgentConfigs } from '@/types/interface';
 import {
@@ -1072,8 +1078,22 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
           taskDef: NonNullable<ReturnType<typeof getMxuSpecialTask>>['taskDef'] | TaskItem;
           specialTask: ReturnType<typeof getMxuSpecialTask>;
         }
+        let orderedTasks: typeof compatibleTasks;
+        try {
+          orderedTasks = resolveRandomTaskOrder(
+            compatibleTasks.filter((task) => !isPretaskName(task.taskName)),
+          );
+        } catch (err) {
+          if (err instanceof RandomTaskRangeError) {
+            log.error(`实例 ${targetInstance.name}: 随机任务区间无效: ${err.message}`);
+            toast.error(t('specialTask.random.invalidRange'));
+            return false;
+          }
+          throw err;
+        }
+
         const runnableTasks: RunnableTask[] = [];
-        for (const selectedTask of compatibleTasks) {
+        for (const selectedTask of orderedTasks) {
           // pretask 不进入 Tasker 队列，已在连接 Controller 前单独执行
           if (isPretaskName(selectedTask.taskName)) {
             continue;
