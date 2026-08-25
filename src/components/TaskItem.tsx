@@ -338,17 +338,22 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
     const tasks = instance?.selectedTasks ?? [];
     let groupIndex = -1;
     let open = false;
+    let enabled = false;
     for (const item of tasks) {
       if (item.taskName === '__MXU_RANDOM_START__') {
         groupIndex += 1;
         open = true;
+        enabled = item.enabled;
       }
       if (item.id === task.id) {
-        return { index: open ? groupIndex : -1, inside: open };
+        return { index: open ? groupIndex : -1, inside: open, enabled };
       }
-      if (item.taskName === '__MXU_RANDOM_END__') open = false;
+      if (item.taskName === '__MXU_RANDOM_END__') {
+        open = false;
+        enabled = false;
+      }
     }
-    return { index: -1, inside: false };
+    return { index: -1, inside: false, enabled: false };
   }, [instance?.selectedTasks, task.id]);
 
   // 获取任务定义 - 支持 MXU 内置特殊任务与 pretask 前置任务
@@ -654,7 +659,7 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
 
   const handleNameClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isInstanceRunning || isIncompatible || isExecutionMarker) return;
+    if (isInstanceRunning || isIncompatible) return;
     toggleTaskEnabled(instanceId, task.id);
   };
 
@@ -804,7 +809,12 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
       onContextMenu={handleContextMenu}
       className={clsx(
         'group bg-bg-secondary rounded-lg border border-border transition-shadow relative',
-        randomGroup.inside && !isExecutionMarker && 'ml-3',
+        'transition-[margin,box-shadow,border-color] duration-200 ease-out',
+        randomGroup.inside && randomGroup.enabled && !isExecutionMarker && 'ml-4',
+        randomGroup.inside && randomGroup.enabled && isExecutionMarker &&
+          'bg-accent/[0.04] border-accent/35',
+        randomGroup.inside && randomGroup.enabled && !isExecutionMarker &&
+          'border-l-2 border-l-accent/30 bg-bg-secondary/80',
         isDragging && 'shadow-lg opacity-50',
         taskRunStatus === 'running' && 'task-item-running',
         isAnimating && 'animate-task-slide-in',
@@ -841,7 +851,7 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
         <label
           className={clsx(
             'flex items-center relative',
-            isInstanceRunning || isIncompatible || isExecutionMarker
+            isInstanceRunning || isIncompatible
               ? 'cursor-not-allowed opacity-50'
               : 'cursor-pointer',
           )}
@@ -856,10 +866,8 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
           <input
             type="checkbox"
             checked={task.enabled}
-            onChange={() =>
-              !isIncompatible && !isExecutionMarker && toggleTaskEnabled(instanceId, task.id)
-            }
-            disabled={isInstanceRunning || isIncompatible || isExecutionMarker}
+            onChange={() => !isIncompatible && toggleTaskEnabled(instanceId, task.id)}
+            disabled={isInstanceRunning || isIncompatible}
             className="w-4 h-4 rounded border-border-strong accent-accent disabled:cursor-not-allowed"
           />
           {/* 不兼容警告图标 */}
@@ -884,7 +892,7 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
               <div
                 className={clsx(
                   'flex items-center gap-1 min-w-0 overflow-hidden',
-                  isInstanceRunning || isIncompatible || isExecutionMarker
+                  isInstanceRunning || isIncompatible
                     ? 'cursor-not-allowed'
                     : 'cursor-pointer',
                 )}

@@ -792,6 +792,14 @@ pub async fn start_tasks_impl(
     }
     debug!("[start_tasks] TaskRunState updated");
 
+    // MaaYYs 悬赏识别：主任务批次真正提交成功后，只启动一次独立识别任务。
+    // start_for_instance 内部通过 active 集合去重，追加批次不会重复创建 Controller。
+    super::assist_monitor::start_for_instance(
+        app.clone(),
+        Arc::clone(maa_state),
+        instance_id.clone(),
+    );
+
     info!(
         "[start_tasks] start_tasks_impl completed successfully, returning {} task_ids",
         task_ids.len()

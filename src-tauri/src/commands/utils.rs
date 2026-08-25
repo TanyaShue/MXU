@@ -4,6 +4,7 @@
 
 use super::types::{LogEntryDto, MaaCallbackEvent, MaaState, StateChangedEvent};
 use crate::ws_broadcast::{WsBroadcast, WsEvent};
+use maa_framework::common::MaaStatus;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager};
@@ -129,6 +130,10 @@ pub fn handle_task_callback(
             Some(i) => i,
             None => return,
         };
+        // 未绑定 selectedTaskId 的任务不会出现在 mappings/statuses 中，
+        // 但它们仍属于当前批次。提前读取 Maa Tasker 状态，避免 all_done
+        // 因缺少 UI 映射而永远为 false，导致独立监控无法跟随主任务停止。
+        let tasker_for_status = instance.tasker.clone();
         let state = &mut instance.task_run_state;
 
         if is_started {
@@ -149,12 +154,20 @@ pub fn handle_task_callback(
 
             // 检查所有已入队任务是否均已完成
             let all_completed = state.pending_task_ids.iter().all(|id| {
-                state
+                if let Some(status) = state
                     .mappings
                     .get(id)
                     .and_then(|sel_id| state.statuses.get(sel_id))
-                    .map(|s| s == "succeeded" || s == "failed")
-                    .unwrap_or(false)
+                {
+                    return status == "succeeded" || status == "failed";
+                }
+
+                tasker_for_status
+                    .as_ref()
+                    .and_then(|tasker| tasker.get_task_detail(*id).ok().flatten())
+                    .is_some_and(|detail| {
+                        detail.status == MaaStatus::SUCCEEDED || detail.status == MaaStatus::FAILED
+                    })
             });
 
             if all_completed {

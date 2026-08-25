@@ -780,16 +780,57 @@ export const useAppStore = create<AppState>()(
 
     toggleTaskEnabled: (instanceId, taskId) =>
       set((state) => ({
-        instances: state.instances.map((i) =>
-          i.id === instanceId
-            ? {
-                ...i,
-                selectedTasks: i.selectedTasks.map((t) =>
-                  t.id === taskId ? { ...t, enabled: !t.enabled } : t,
-                ),
+        instances: state.instances.map((i) => {
+          if (i.id !== instanceId) return i;
+          const targetIndex = i.selectedTasks.findIndex((t) => t.id === taskId);
+          if (targetIndex < 0) return i;
+          const target = i.selectedTasks[targetIndex];
+          const isRandomMarker =
+            target.taskName === '__MXU_RANDOM_START__' ||
+            target.taskName === '__MXU_RANDOM_END__';
+
+          if (!isRandomMarker) {
+            return {
+              ...i,
+              selectedTasks: i.selectedTasks.map((t) =>
+                t.id === taskId ? { ...t, enabled: !t.enabled } : t,
+              ),
+            };
+          }
+
+          const nextEnabled = !target.enabled;
+          let startIndex = targetIndex;
+          let endIndex = targetIndex;
+          if (target.randomGroupId) {
+            startIndex = i.selectedTasks.findIndex(
+              (t) =>
+                t.randomGroupId === target.randomGroupId &&
+                t.taskName === '__MXU_RANDOM_START__',
+            );
+            endIndex = i.selectedTasks.findIndex(
+              (t) =>
+                t.randomGroupId === target.randomGroupId && t.taskName === '__MXU_RANDOM_END__',
+            );
+          } else if (target.taskName === '__MXU_RANDOM_START__') {
+            endIndex = i.selectedTasks.findIndex(
+              (t, index) => index > targetIndex && t.taskName === '__MXU_RANDOM_END__',
+            );
+          } else {
+            for (let index = targetIndex - 1; index >= 0; index -= 1) {
+              if (i.selectedTasks[index].taskName === '__MXU_RANDOM_START__') {
+                startIndex = index;
+                break;
               }
-            : i,
-        ),
+            }
+          }
+
+          return {
+            ...i,
+            selectedTasks: i.selectedTasks.map((t, index) =>
+              index === startIndex || index === endIndex ? { ...t, enabled: nextEnabled } : t,
+            ),
+          };
+        }),
       })),
 
     toggleTaskExpanded: (instanceId, taskId) =>
