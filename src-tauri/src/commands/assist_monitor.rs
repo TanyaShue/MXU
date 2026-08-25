@@ -22,13 +22,11 @@ const PROJECT_NAME: &str = "MaaYYs";
 const ENTRY: &str = "开始识别悬赏封印委托";
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(20);
 const RESOURCE_TIMEOUT: Duration = Duration::from_secs(60);
-const TASK_TIMEOUT: Duration = Duration::from_secs(60);
-const MONITOR_MAX_RUNTIME: Duration = Duration::from_secs(120);
+const STOP_WAIT_TIMEOUT: Duration = Duration::from_secs(120);
 
 struct MonitorControl {
     generation: u64,
     stop_requested: AtomicBool,
-    stop_requested_at: Mutex<Option<Instant>>,
 }
 
 #[derive(Clone)]
@@ -57,7 +55,7 @@ impl AssistRuntime {
 
         let started = Instant::now();
         while tasker.running() || tasker.stopping() {
-            if started.elapsed() >= MONITOR_MAX_RUNTIME {
+            if started.elapsed() >= STOP_WAIT_TIMEOUT {
                 log::error!(
                     "[assist-monitor] instance {} Tasker stop exceeded 2 minutes; keeping runtime alive",
                     instance_id
@@ -159,7 +157,6 @@ pub fn start_for_instance(app: tauri::AppHandle, maa_state: Arc<MaaState>, insta
         let control = Arc::new(MonitorControl {
             generation,
             stop_requested: AtomicBool::new(false),
-            stop_requested_at: Mutex::new(None),
         });
         controls.insert((instance_id.clone(), generation), control.clone());
         control
@@ -227,13 +224,11 @@ async fn process_instance(
     app: tauri::AppHandle,
     instance_id: &str,
 ) -> Result<(), String> {
-    let deadline = Instant::now() + MONITOR_MAX_RUNTIME;
     let runtime = take_or_create_runtime(
         snapshot,
         &control.stop_requested,
         app.clone(),
         instance_id.to_string(),
-        deadline,
     )
     .await?;
 
@@ -249,8 +244,6 @@ async fn process_instance(
             &runtime.tasker,
             task_job.id,
             &control.stop_requested,
-            TASK_TIMEOUT,
-            deadline,
             "任务执行",
         )
         .await?;
@@ -264,17 +257,6 @@ async fn process_instance(
     // 监控任务无论是自然结束、主任务结束还是出错，都不再复用。
     // post_stop 是异步请求，必须等待 Tasker 完全停止后才可析构运行时。
     runtime.stop_and_wait(instance_id).await;
-    if let Ok(requested_at) = control.stop_requested_at.lock() {
-        if let Some(requested_at) = *requested_at {
-            if requested_at.elapsed() >= MONITOR_MAX_RUNTIME {
-                log::warn!(
-                    "[assist-monitor] instance {} generation {} stop exceeded 2 minutes",
-                    instance_id,
-                    control.generation
-                );
-            }
-        }
-    }
     result
 }
 
@@ -283,7 +265,6 @@ async fn take_or_create_runtime(
     stop_requested: &AtomicBool,
     app: tauri::AppHandle,
     instance_id: String,
-    deadline: Instant,
 ) -> Result<AssistRuntime, String> {
     if stop_requested.load(Ordering::SeqCst) {
         return Err("任务已停止".to_string());
@@ -327,7 +308,6 @@ async fn take_or_create_runtime(
         connection_id,
         stop_requested,
         CONNECT_TIMEOUT,
-        deadline,
         "独立控制器连接",
     )
     .await?;
@@ -340,14 +320,7 @@ async fn take_or_create_runtime(
         let job = resource
             .post_bundle(&normalized)
             .map_err(|e| format!("独立资源加载提交失败：{}", e))?;
-        wait_resource_job(
-            &resource,
-            job.id,
-            stop_requested,
-            RESOURCE_TIMEOUT,
-            deadline,
-        )
-        .await?;
+        wait_resource_job(&resource, job.id, stop_requested, RESOURCE_TIMEOUT).await?;
     }
 
     let tasker = Tasker::new().map_err(|e| format!("独立 Tasker 创建失败：{}", e))?;
@@ -382,11 +355,6 @@ pub(crate) fn request_stop(maa_state: &MaaState, instance_id: &str) {
         for ((id, _), control) in controls.iter() {
             if id == instance_id {
                 control.stop_requested.store(true, Ordering::SeqCst);
-                if let Ok(mut requested_at) = control.stop_requested_at.lock() {
-                    if requested_at.is_none() {
-                        *requested_at = Some(Instant::now());
-                    }
-                }
             }
         }
     }
@@ -413,7 +381,6 @@ async fn wait_controller_job(
     job_id: i64,
     stop_requested: &AtomicBool,
     timeout: Duration,
-    deadline: Instant,
     operation: &str,
 ) -> Result<(), String> {
     let started = Instant::now();
@@ -428,7 +395,7 @@ async fn wait_controller_job(
         if stop_requested.load(Ordering::SeqCst) {
             return Err(format!("{}已停止", operation));
         }
-        if started.elapsed() >= timeout || Instant::now() >= deadline {
+        if started.elapsed() >= timeout {
             return Err(format!("{}超时", operation));
         }
         tokio::time::sleep(Duration::from_millis(200)).await;
@@ -440,7 +407,6 @@ async fn wait_resource_job(
     job_id: i64,
     stop_requested: &AtomicBool,
     timeout: Duration,
-    deadline: Instant,
 ) -> Result<(), String> {
     let started = Instant::now();
     loop {
@@ -454,7 +420,7 @@ async fn wait_resource_job(
         if stop_requested.load(Ordering::SeqCst) {
             return Err("独立资源加载已停止".to_string());
         }
-        if started.elapsed() >= timeout || Instant::now() >= deadline {
+        if started.elapsed() >= timeout {
             return Err("独立资源加载超时".to_string());
         }
         tokio::time::sleep(Duration::from_millis(200)).await;
@@ -465,11 +431,8 @@ async fn wait_task_job(
     tasker: &Tasker,
     job_id: i64,
     stop_requested: &AtomicBool,
-    timeout: Duration,
-    deadline: Instant,
     operation: &str,
 ) -> Result<MaaStatus, String> {
-    let started = Instant::now();
     loop {
         let status = tasker
             .get_task_detail(job_id)
@@ -481,9 +444,6 @@ async fn wait_task_job(
         }
         if stop_requested.load(Ordering::SeqCst) {
             return Err(format!("{}已停止", operation));
-        }
-        if started.elapsed() >= timeout || Instant::now() >= deadline {
-            return Err(format!("{}超时", operation));
         }
         tokio::time::sleep(Duration::from_millis(200)).await;
     }
