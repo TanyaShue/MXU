@@ -750,14 +750,54 @@ export const useAppStore = create<AppState>()(
 
     removeTaskFromInstance: (instanceId, taskId) =>
       set((state) => ({
-        instances: state.instances.map((i) =>
-          i.id === instanceId
-            ? {
-                ...i,
-                selectedTasks: i.selectedTasks.filter((t) => t.id !== taskId),
+        instances: state.instances.map((i) => {
+          if (i.id !== instanceId) return i;
+
+          const targetIndex = i.selectedTasks.findIndex((task) => task.id === taskId);
+          if (targetIndex < 0) return i;
+
+          const target = i.selectedTasks[targetIndex];
+          const isRandomMarker =
+            target.taskName === '__MXU_RANDOM_START__' || target.taskName === '__MXU_RANDOM_END__';
+          const taskIdsToRemove = new Set([taskId]);
+
+          if (isRandomMarker) {
+            if (target.randomGroupId) {
+              // New random ranges share a group ID, so remove both markers atomically.
+              i.selectedTasks.forEach((task) => {
+                if (
+                  task.randomGroupId === target.randomGroupId &&
+                  (task.taskName === '__MXU_RANDOM_START__' ||
+                    task.taskName === '__MXU_RANDOM_END__')
+                ) {
+                  taskIdsToRemove.add(task.id);
+                }
+              });
+            } else {
+              // Older persisted tasks may not have a group ID; pair by marker order.
+              const counterpartName =
+                target.taskName === '__MXU_RANDOM_START__'
+                  ? '__MXU_RANDOM_END__'
+                  : '__MXU_RANDOM_START__';
+              const step = target.taskName === '__MXU_RANDOM_START__' ? 1 : -1;
+              for (
+                let index = targetIndex + step;
+                index >= 0 && index < i.selectedTasks.length;
+                index += step
+              ) {
+                if (i.selectedTasks[index].taskName === counterpartName) {
+                  taskIdsToRemove.add(i.selectedTasks[index].id);
+                  break;
+                }
               }
-            : i,
-        ),
+            }
+          }
+
+          return {
+            ...i,
+            selectedTasks: i.selectedTasks.filter((task) => !taskIdsToRemove.has(task.id)),
+          };
+        }),
       })),
 
     reorderTasks: (instanceId, oldIndex, newIndex) =>
@@ -786,8 +826,7 @@ export const useAppStore = create<AppState>()(
           if (targetIndex < 0) return i;
           const target = i.selectedTasks[targetIndex];
           const isRandomMarker =
-            target.taskName === '__MXU_RANDOM_START__' ||
-            target.taskName === '__MXU_RANDOM_END__';
+            target.taskName === '__MXU_RANDOM_START__' || target.taskName === '__MXU_RANDOM_END__';
 
           if (!isRandomMarker) {
             return {
@@ -804,8 +843,7 @@ export const useAppStore = create<AppState>()(
           if (target.randomGroupId) {
             startIndex = i.selectedTasks.findIndex(
               (t) =>
-                t.randomGroupId === target.randomGroupId &&
-                t.taskName === '__MXU_RANDOM_START__',
+                t.randomGroupId === target.randomGroupId && t.taskName === '__MXU_RANDOM_START__',
             );
             endIndex = i.selectedTasks.findIndex(
               (t) =>
