@@ -589,8 +589,70 @@ export const useAppStore = create<AppState>()(
       if (!preset) return;
 
       const newTasks: SelectedTask[] = [];
+      // 随机任务标记必须成对存在，并共享同一个 randomGroupId。
+      // 预设中的任务顺序就是用户期望的视觉顺序，因此在遍历时维护当前区间即可。
+      let randomGroupId: string | undefined;
 
       for (const presetTask of preset.task) {
+        const specialTask = getMxuSpecialTask(presetTask.name);
+
+        if (specialTask) {
+          const isRandomStart = specialTask.executionMarker === 'random-start';
+          const isRandomEnd = specialTask.executionMarker === 'random-end';
+
+          if (isRandomStart) {
+            // 禁止嵌套随机区间；无效结构不会写入实例，避免后续运行时报错。
+            if (randomGroupId) {
+              loggers.task.warn(
+                `[applyPreset] Nested random task range in preset "${presetName}"; marker skipped.`,
+              );
+              continue;
+            }
+            randomGroupId = generateId();
+          } else if (isRandomEnd) {
+            if (!randomGroupId) {
+              loggers.task.warn(
+                `[applyPreset] Random range end without matching start in preset "${presetName}"; marker skipped.`,
+              );
+              continue;
+            }
+          }
+
+          const optionValues: Record<string, OptionValue> = {};
+          if (!isRandomStart && !isRandomEnd) {
+            Object.assign(
+              optionValues,
+              initializeAllOptionValues(
+                Object.keys(specialTask.optionDefs),
+                specialTask.optionDefs,
+              ),
+            );
+            if (presetTask.option) {
+              for (const [optionKey, presetValue] of Object.entries(presetTask.option)) {
+                const converted = convertPresetOptionValue(
+                  optionKey,
+                  presetValue,
+                  specialTask.optionDefs,
+                );
+                if (converted) optionValues[optionKey] = converted;
+              }
+            }
+          }
+
+          newTasks.push({
+            id: generateId(),
+            taskName: presetTask.name,
+            // 随机标记是结构控制符，始终启用；其显示状态由成对操作统一维护。
+            enabled: isRandomStart || isRandomEnd ? true : presetTask.enabled !== false,
+            optionValues,
+            expanded: true,
+            ...((isRandomStart || isRandomEnd) && randomGroupId ? { randomGroupId } : {}),
+          });
+
+          if (isRandomEnd) randomGroupId = undefined;
+          continue;
+        }
+
         const taskDef = pi.task.find((t) => t.name === presetTask.name);
         if (!taskDef) {
           loggers.task.warn(
@@ -620,6 +682,15 @@ export const useAppStore = create<AppState>()(
           optionValues,
           expanded: true,
         });
+      }
+
+      if (randomGroupId) {
+        loggers.task.warn(
+          `[applyPreset] Random range start without matching end in preset "${presetName}"; start marker skipped.`,
+        );
+        // 丢弃未闭合的随机区间，避免产生无法执行的任务结构。
+        const startIndex = newTasks.findIndex((task) => task.randomGroupId === randomGroupId);
+        if (startIndex >= 0) newTasks.splice(startIndex, 1);
       }
 
       set((state) => ({
