@@ -16,7 +16,7 @@ use maa_framework::tasker::Tasker;
 
 use super::maa_core::create_controller_from_config;
 use super::types::{ControllerConfig, MaaState};
-use super::utils::{emit_callback_event, emit_instance_log, normalize_path};
+use super::utils::{emit_callback_event, normalize_path};
 
 const PROJECT_NAME: &str = "MaaYYs";
 const ENTRY: &str = "开始识别悬赏封印委托";
@@ -169,22 +169,15 @@ pub fn start_for_instance(app: tauri::AppHandle, maa_state: Arc<MaaState>, insta
             app.clone(),
             &instance_id,
         ));
-        match result {
-            Ok(()) => log::info!("[assist-monitor] instance {} stopped", instance_id),
-            Err(ref error) => log::warn!(
-                "[assist-monitor] instance {} failed: {}",
-                instance_id,
-                error
-            ),
-        }
-        if let Err(error) = &result {
-            emit_instance_log(
-                &maa_state,
-                &app,
-                &instance_id,
-                "error",
-                format!("[悬赏封印监控]{}", error),
-            );
+        if let Err(error) = result {
+            // 主任务结束时的停止请求属于正常流程，不输出噪声日志。
+            if !control.stop_requested.load(Ordering::SeqCst) {
+                log::warn!(
+                    "[assist-monitor] instance {} failed: {}",
+                    instance_id,
+                    error
+                );
+            }
         }
         clear_generation(&maa_state, &instance_id, control.generation);
     });
