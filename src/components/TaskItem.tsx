@@ -2,7 +2,17 @@ import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, ChevronRight, X, Loader2, FileText, Link, AlertCircle } from 'lucide-react';
+import {
+  GripVertical,
+  ChevronRight,
+  X,
+  Loader2,
+  FileText,
+  Link,
+  AlertCircle,
+  Play,
+  CircleDot,
+} from 'lucide-react';
 import { useAppStore, type TaskRunStatus } from '@/stores/appStore';
 import { maaService } from '@/services/maaService';
 import { useResolvedContent } from '@/services/contentResolver';
@@ -12,12 +22,16 @@ import { ContextMenu, useContextMenu } from './ContextMenu';
 import { Tooltip } from './ui/Tooltip';
 import { ConfirmDialog } from './ConfirmDialog';
 import { buildListItemMenuItems, InlineNameEditor } from './listItemShared';
+import { TriStateCheckbox, getTaskCheckboxState } from './ui/TriStateCheckbox';
+import { taskStartService } from '@/services/taskStartService';
+import type { MenuItem } from './ContextMenu';
 import type { SelectedTask, CaseItem } from '@/types/interface';
 import { isMxuSpecialTask, getMxuSpecialTask, findMxuOptionByKey } from '@/types/specialTasks';
 import { isPretaskName, getPretaskItem, buildPretaskDef } from '@/types/pretasks';
 import { getInterfaceLangKey } from '@/i18n';
 import clsx from 'clsx';
 import { loggers } from '@/utils/logger';
+import { isPasswordInput } from '@/utils/passwordOptionValues';
 
 /** 选项预览标签组件 */
 function OptionPreviewTag({
@@ -305,6 +319,7 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
   const {
     projectInterface,
     toggleTaskEnabled,
+    setTaskRunOnce,
     toggleTaskExpanded,
     removeTaskFromInstance,
     confirmBeforeDelete,
@@ -333,28 +348,6 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
   // 获取实例运行状态
   const instance = instances.find((i) => i.id === instanceId);
   const isInstanceRunning = instance?.isRunning || false;
-
-  const randomGroup = useMemo(() => {
-    const tasks = instance?.selectedTasks ?? [];
-    let groupIndex = -1;
-    let open = false;
-    let enabled = false;
-    for (const item of tasks) {
-      if (item.taskName === '__MXU_RANDOM_START__') {
-        groupIndex += 1;
-        open = true;
-        enabled = item.enabled;
-      }
-      if (item.id === task.id) {
-        return { index: open ? groupIndex : -1, inside: open, enabled };
-      }
-      if (item.taskName === '__MXU_RANDOM_END__') {
-        open = false;
-        enabled = false;
-      }
-    }
-    return { index: -1, inside: false, enabled: false };
-  }, [instance?.selectedTasks, task.id]);
 
   // 获取任务定义 - 支持 MXU 内置特殊任务与 pretask 前置任务
   const isMxuTask = isMxuSpecialTask(task.taskName);
@@ -421,8 +414,8 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
     t,
   ]);
 
-  // 紧凑模式：实例运行时，未启用的任务显示为紧凑样式
-  const isCompact = isInstanceRunning && !task.enabled;
+  // 紧凑模式：实例运行时，未参与运行的任务显示为紧凑样式
+  const isCompact = isInstanceRunning && !task.enabled && !task.runOnce && taskRunStatus === 'idle';
 
   // 判断是否可以编辑选项：实例未运行时始终可以编辑，运行中只有 pending 或 idle 状态的任务可以编辑
   const canEditOptions =
@@ -550,11 +543,7 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
       ? t(taskDef.label || taskDef.name)
       : resolveI18nText(taskDef.label, langKey) || taskDef.name
     : '';
-  const baseDisplayName = task.customName || originalLabel;
-  const displayName =
-    isExecutionMarker && randomGroup.index > 0
-      ? `${baseDisplayName}-${randomGroup.index + 1}`
-      : baseDisplayName;
+  const displayName = task.customName || originalLabel;
   const hasOptions = !!taskDef?.option && taskDef.option.length > 0;
   // 判断是否有描述内容（包括正在加载的情况）
   const hasDescription = !!resolvedDescription.html || resolvedDescription.loading;
@@ -608,7 +597,7 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
             previews.push({
               key: optionKey,
               label: optionLabel,
-              value: inputValue,
+              value: isPasswordInput(firstInput) ? '••••' : inputValue,
               type: 'input',
             });
           }
@@ -657,6 +646,59 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
     t,
   ]);
 
+  const checkboxState = getTaskCheckboxState(task.enabled, Boolean(task.runOnce));
+
+  const handleCheckboxClick = () => {
+    if (isInstanceRunning || isIncompatible) return;
+    toggleTaskEnabled(instanceId, task.id);
+  };
+
+  const handleCheckboxContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (isInstanceRunning || isIncompatible) return;
+
+      const menuItems: MenuItem[] = [
+        {
+          id: 'run-once',
+          label: t('contextMenu.runOnceTask'),
+          icon: CircleDot,
+          checked: Boolean(task.runOnce),
+          onClick: () => setTaskRunOnce(instanceId, task.id, !task.runOnce),
+        },
+        {
+          id: 'clear-run-once',
+          label: t('contextMenu.clearRunOnceTask'),
+          disabled: !task.runOnce,
+          onClick: () => setTaskRunOnce(instanceId, task.id, false),
+        },
+      ];
+
+      showMenu(e, menuItems);
+    },
+    [
+      t,
+      task.runOnce,
+      instanceId,
+      task.id,
+      isInstanceRunning,
+      isIncompatible,
+      setTaskRunOnce,
+      showMenu,
+    ],
+  );
+
+  const handleRunFromHere = useCallback(async () => {
+    if (!instance || isInstanceRunning || isIncompatible) return;
+    await taskStartService.start(instance, { startFromTaskId: task.id });
+  }, [instance, isInstanceRunning, isIncompatible, task.id]);
+
+  const handleRunSingle = useCallback(async () => {
+    if (!instance || isInstanceRunning || isIncompatible) return;
+    await taskStartService.start(instance, { singleTaskId: task.id });
+  }, [instance, isInstanceRunning, isIncompatible, task.id]);
+
   const handleNameClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (isInstanceRunning || isIncompatible) return;
@@ -685,45 +727,62 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
       const tasks = instance.selectedTasks;
       const taskIndex = tasks.findIndex((t) => t.id === task.id);
 
-      const menuItems = buildListItemMenuItems({
-        labels: {
-          duplicate: t('contextMenu.duplicateTask'),
-          rename: t('contextMenu.renameTask'),
-          enable: t('contextMenu.enableTask'),
-          disable: t('contextMenu.disableTask'),
-          expand: t('contextMenu.expandOptions'),
-          collapse: t('contextMenu.collapseOptions'),
-          moveUp: t('contextMenu.moveUp'),
-          moveDown: t('contextMenu.moveDown'),
-          moveToTop: t('contextMenu.moveToTop'),
-          moveToBottom: t('contextMenu.moveToBottom'),
-          delete: t('contextMenu.deleteTask'),
+      const menuItems: MenuItem[] = [
+        {
+          id: 'run-from-here',
+          label: t('contextMenu.runFromHere'),
+          icon: Play,
+          disabled: isInstanceRunning || isIncompatible,
+          onClick: () => void handleRunFromHere(),
         },
-        isEnabled: task.enabled,
-        isExpanded: !!task.expanded,
-        canExpand,
-        isFirst: taskIndex === 0,
-        isLast: taskIndex === tasks.length - 1,
-        isLocked: isInstanceRunning,
-        onDuplicate: () => duplicateTask(instanceId, task.id),
-        onRename: () => {
-          setEditName(task.customName || '');
-          setIsEditing(true);
+        {
+          id: 'run-single',
+          label: t('contextMenu.runSingleTask'),
+          icon: Play,
+          disabled: isInstanceRunning || isIncompatible,
+          onClick: () => void handleRunSingle(),
         },
-        onToggle: () => toggleTaskEnabled(instanceId, task.id),
-        onExpand: () => toggleTaskExpanded(instanceId, task.id),
-        onMoveUp: () => moveTaskUp(instanceId, task.id),
-        onMoveDown: () => moveTaskDown(instanceId, task.id),
-        onMoveToTop: () => moveTaskToTop(instanceId, task.id),
-        onMoveToBottom: () => moveTaskToBottom(instanceId, task.id),
-        onDelete: () => {
-          if (!confirmBeforeDelete) {
-            removeTaskFromInstance(instanceId, task.id);
-            return;
-          }
-          setShowDeleteConfirm(true);
-        },
-      });
+        { id: 'divider-run', label: '', divider: true },
+        ...buildListItemMenuItems({
+          labels: {
+            duplicate: t('contextMenu.duplicateTask'),
+            rename: t('contextMenu.renameTask'),
+            enable: t('contextMenu.enableTask'),
+            disable: t('contextMenu.disableTask'),
+            expand: t('contextMenu.expandOptions'),
+            collapse: t('contextMenu.collapseOptions'),
+            moveUp: t('contextMenu.moveUp'),
+            moveDown: t('contextMenu.moveDown'),
+            moveToTop: t('contextMenu.moveToTop'),
+            moveToBottom: t('contextMenu.moveToBottom'),
+            delete: t('contextMenu.deleteTask'),
+          },
+          isEnabled: task.enabled,
+          isExpanded: !!task.expanded,
+          canExpand,
+          isFirst: taskIndex === 0,
+          isLast: taskIndex === tasks.length - 1,
+          isLocked: isInstanceRunning,
+          onDuplicate: () => duplicateTask(instanceId, task.id),
+          onRename: () => {
+            setEditName(task.customName || '');
+            setIsEditing(true);
+          },
+          onToggle: () => toggleTaskEnabled(instanceId, task.id),
+          onExpand: () => toggleTaskExpanded(instanceId, task.id),
+          onMoveUp: () => moveTaskUp(instanceId, task.id),
+          onMoveDown: () => moveTaskDown(instanceId, task.id),
+          onMoveToTop: () => moveTaskToTop(instanceId, task.id),
+          onMoveToBottom: () => moveTaskToBottom(instanceId, task.id),
+          onDelete: () => {
+            if (!confirmBeforeDelete) {
+              removeTaskFromInstance(instanceId, task.id);
+              return;
+            }
+            setShowDeleteConfirm(true);
+          },
+        }),
+      ];
 
       showMenu(e, menuItems);
     },
@@ -744,6 +803,9 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
       confirmBeforeDelete,
       showMenu,
       isInstanceRunning,
+      isIncompatible,
+      handleRunFromHere,
+      handleRunSingle,
     ],
   );
 
@@ -809,12 +871,6 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
       onContextMenu={handleContextMenu}
       className={clsx(
         'group bg-bg-secondary rounded-lg border border-border transition-shadow relative',
-        'transition-[margin,box-shadow,border-color] duration-200 ease-out',
-        randomGroup.inside && randomGroup.enabled && !isExecutionMarker && 'ml-4',
-        randomGroup.inside && randomGroup.enabled && isExecutionMarker &&
-          'bg-accent/[0.04] border-accent/35',
-        randomGroup.inside && randomGroup.enabled && !isExecutionMarker &&
-          'border-l-2 border-l-accent/30 bg-bg-secondary/80',
         isDragging && 'shadow-lg opacity-50',
         taskRunStatus === 'running' && 'task-item-running',
         isAnimating && 'animate-task-slide-in',
@@ -848,33 +904,32 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
         </div>
 
         {/* 启用复选框 - 运行时或不兼容时禁用 */}
-        <label
+        <div
           className={clsx(
             'flex items-center relative',
-            isInstanceRunning || isIncompatible
-              ? 'cursor-not-allowed opacity-50'
-              : 'cursor-pointer',
+            isInstanceRunning || isIncompatible ? 'opacity-50' : '',
           )}
           title={
             isIncompatible
               ? incompatibleReason
               : isExecutionMarker
                 ? t('specialTask.random.description')
+                : checkboxState === 'once'
+                  ? t('taskItem.runOnceHint')
                 : undefined
           }
         >
-          <input
-            type="checkbox"
-            checked={task.enabled}
-            onChange={() => !isIncompatible && toggleTaskEnabled(instanceId, task.id)}
+          <TriStateCheckbox
+            state={checkboxState}
             disabled={isInstanceRunning || isIncompatible}
-            className="w-4 h-4 rounded border-border-strong accent-accent disabled:cursor-not-allowed"
+            onClick={handleCheckboxClick}
+            onContextMenu={handleCheckboxContextMenu}
           />
           {/* 不兼容警告图标 */}
           {isIncompatible && (
-            <AlertCircle className="w-3.5 h-3.5 text-warning absolute -top-1 -right-1" />
+            <AlertCircle className="w-3.5 h-3.5 text-warning absolute -top-1 -right-1 pointer-events-none" />
           )}
-        </label>
+        </div>
 
         {/* 任务名称 + 展开区域容器 */}
         <div className="flex-1 flex items-center min-w-0">
@@ -892,9 +947,7 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
               <div
                 className={clsx(
                   'flex items-center gap-1 min-w-0 overflow-hidden',
-                  isInstanceRunning || isIncompatible
-                    ? 'cursor-not-allowed'
-                    : 'cursor-pointer',
+                  isInstanceRunning || isIncompatible ? 'cursor-not-allowed' : 'cursor-pointer',
                 )}
                 onClick={handleNameClick}
                 title={t('taskItem.clickToToggle')}
@@ -902,16 +955,15 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
                 <span
                   className={clsx(
                     'min-w-0 text-sm font-medium truncate',
-                    task.enabled ? 'text-text-primary' : 'text-text-muted',
+                    task.enabled
+                      ? 'text-text-primary'
+                      : task.runOnce
+                        ? 'text-accent'
+                        : 'text-text-muted',
                   )}
                 >
                   {displayName}
                 </span>
-                {mxuSpecialTask?.executionMarker === 'random-start' && (
-                  <span className="text-[11px] text-accent/80 truncate">
-                    {t('specialTask.random.description')}
-                  </span>
-                )}
                 {task.customName && (
                   <span className="min-w-0 truncate text-xs text-text-muted">
                     ({originalLabel})

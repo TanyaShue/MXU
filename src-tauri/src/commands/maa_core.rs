@@ -18,13 +18,17 @@ use maa_framework::toolkit::Toolkit;
 use maa_framework::MaaStatus;
 
 use super::types::{
-    AdbDevice, ConnectionStatus, ControllerConfig, MaaState, TaskStatus, VersionCheckResult,
-    Win32Window,
+    AdbDevice, ConnectionStatus, ControllerConfig, GamescopeInstance, MaaState, TaskStatus,
+    VersionCheckResult, Win32Window,
 };
 use super::utils::{emit_callback_event, get_maafw_dir, handle_task_callback, normalize_path};
 
 /// MaaFramework 最小支持版本
-const MIN_MAAFW_VERSION: &str = "5.5.0-beta.1";
+const MIN_MAAFW_VERSION: &str = "5.12.1";
+
+/// Linux 控制器所需的最小 MaaFramework 版本（libei 输入 / gamescope 发现 / Portal 辅助）
+#[cfg(target_os = "linux")]
+const MIN_LINUX_MAAFW_VERSION: &str = "5.13.0-beta.3";
 
 #[cfg(any(target_os = "macos", test))]
 const MIN_MACOS_MAAFW_VERSION: &str = "5.10.0-beta.1";
@@ -168,6 +172,35 @@ fn ensure_macos_maafw_version() -> Result<(), String> {
     }
 }
 
+#[cfg(target_os = "linux")]
+fn linux_maafw_version_supported(current: &str) -> bool {
+    let Ok(current) = semver::Version::parse(current.trim().trim_start_matches('v')) else {
+        return false;
+    };
+    let Ok(minimum) = semver::Version::parse(MIN_LINUX_MAAFW_VERSION) else {
+        return false;
+    };
+
+    current >= minimum
+}
+
+#[cfg(target_os = "linux")]
+fn ensure_linux_maafw_version() -> Result<(), String> {
+    let current = maa_framework::maa_version().to_string();
+    if linux_maafw_version_supported(&current) {
+        Ok(())
+    } else {
+        Err(format!(
+            "LINUX_MAAFW_VERSION_REQUIRED: current={current}, minimum=v{MIN_LINUX_MAAFW_VERSION}"
+        ))
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn ensure_linux_maafw_version() -> Result<(), String> {
+    Ok(())
+}
+
 #[cfg(target_os = "macos")]
 fn check_macos_permission(
     permission: MacOSPermission,
@@ -255,6 +288,34 @@ fn create_macos_controller(
     }
 }
 
+/// 构建 Linux 控制器配置（`Controller::new_linux` 所需）
+#[allow(clippy::too_many_arguments)]
+fn build_linux_controller_config(
+    screencap_method: u64,
+    input_method: u64,
+    wlr_socket_path: Option<&str>,
+    pw_socket_fd: Option<i32>,
+    pw_node_id: Option<u32>,
+    uinput_path: Option<&str>,
+    uinput_screen_width: Option<i32>,
+    uinput_screen_height: Option<i32>,
+    eis_socket_path: Option<&str>,
+    use_win32_vk_code: Option<bool>,
+) -> maa_framework::common::LinuxControllerConfig {
+    maa_framework::common::LinuxControllerConfig {
+        screencap_method,
+        input_method,
+        wlr_socket_path: wlr_socket_path.map(str::to_owned),
+        pw_socket_fd,
+        pw_node_id,
+        uinput_screen_width,
+        uinput_screen_height,
+        uinput_path: uinput_path.map(str::to_owned),
+        eis_socket_path: eis_socket_path.map(str::to_owned),
+        use_win32_vk_code,
+    }
+}
+
 /// 根据配置创建一个全新的 Controller，不读取或写入 ControllerPool。
 /// 主实例和后台监控都通过此工厂构造句柄，以保证监控不会复用主句柄。
 pub(crate) fn create_controller_from_config(
@@ -278,70 +339,58 @@ pub(crate) fn create_controller_from_config(
             let agent_path = get_maafw_dir()
                 .map(|p| p.join("MaaAgentBinary").to_string_lossy().to_string())
                 .unwrap_or_else(|_| "./MaaAgentBinary".to_string());
-
             AdbControllerBuilder::new(adb_path, address)
-                .screencap_methods(
-                    maa_framework::common::AdbScreencapMethod::from_bits_truncate(screencap).bits(),
-                )
-                .input_methods(
-                    maa_framework::common::AdbInputMethod::from_bits_truncate(input).bits(),
-                )
+                .screencap_methods(maa_framework::common::AdbScreencapMethod::from_bits_truncate(screencap).bits())
+                .input_methods(maa_framework::common::AdbInputMethod::from_bits_truncate(input).bits())
                 .config(config)
                 .agent_path(&agent_path)
                 .build()
                 .map_err(|e| e.to_string())
         }
-        ControllerConfig::Win32 {
-            handle,
-            screencap_method,
-            mouse_method,
-            keyboard_method,
-            ..
-        } => Controller::new_win32(
+        ControllerConfig::Win32 { handle, screencap_method, mouse_method, keyboard_method, .. } => Controller::new_win32(
             *handle as *mut std::ffi::c_void,
-            maa_framework::common::Win32ScreencapMethod::from_bits_truncate(*screencap_method)
-                .bits(),
+            maa_framework::common::Win32ScreencapMethod::from_bits_truncate(*screencap_method).bits(),
             maa_framework::common::Win32InputMethod::from_bits_truncate(*mouse_method).bits(),
             maa_framework::common::Win32InputMethod::from_bits_truncate(*keyboard_method).bits(),
-        )
-        .map_err(|e| e.to_string()),
-        ControllerConfig::MacOS {
-            handle,
-            screencap_method,
-            input_method,
-            ..
-        } => create_macos_controller(*handle, *screencap_method, *input_method),
-        ControllerConfig::WlRoots {
-            wlr_socket_path,
-            use_win32_vk_code,
-            ..
-        } => Controller::new_wlroots_with_vk_code(wlr_socket_path, *use_win32_vk_code)
-            .map_err(|e| e.to_string()),
-        ControllerConfig::PlayCover { address, uuid, .. } => {
-            Controller::new_playcover(address, uuid.as_deref().unwrap_or(""))
-                .map_err(|e| e.to_string())
+        ).map_err(|e| e.to_string()),
+        ControllerConfig::MacOS { handle, screencap_method, input_method, .. } =>
+            create_macos_controller(*handle, *screencap_method, *input_method),
+        ControllerConfig::WlRoots { wlr_socket_path, use_win32_vk_code, .. } => {
+            ensure_linux_maafw_version()?;
+            let cfg = build_linux_controller_config(
+                maa_framework::common::LinuxScreencapMethod::WLR.bits(),
+                maa_framework::common::LinuxInputMethod::WLR.bits(),
+                Some(wlr_socket_path), None, None, None, None, None, None,
+                Some(*use_win32_vk_code),
+            );
+            Controller::new_linux(&cfg).map_err(|e| e.to_string())
         }
-        ControllerConfig::Dummy {
-            display_short_side, ..
-        } => Controller::new_custom(crate::dummy_controller::DummyController::new(
-            display_short_side.unwrap_or(720),
-        ))
-        .map_err(|e| e.to_string()),
-        ControllerConfig::Gamepad {
-            handle,
-            gamepad_type,
-            screencap_method,
-            ..
-        } => {
+        ControllerConfig::PlayCover { address, uuid, .. } =>
+            Controller::new_playcover(address, uuid.as_deref().unwrap_or("")).map_err(|e| e.to_string()),
+        ControllerConfig::Dummy { display_short_side, .. } =>
+            Controller::new_custom(crate::dummy_controller::DummyController::new(display_short_side.unwrap_or(720))).map_err(|e| e.to_string()),
+        ControllerConfig::Gamepad { handle, gamepad_type, screencap_method, .. } => {
             let gamepad_type = match gamepad_type.as_deref() {
                 Some("DualShock4") | Some("DS4") => maa_framework::common::GamepadType::DualShock4,
                 _ => maa_framework::common::GamepadType::Xbox360,
             };
-            let screencap = screencap_method
-                .map(maa_framework::common::Win32ScreencapMethod::from_bits_truncate)
+            let screencap = screencap_method.map(maa_framework::common::Win32ScreencapMethod::from_bits_truncate)
                 .unwrap_or(maa_framework::common::Win32ScreencapMethod::DXGI_DESKTOP_DUP);
-            Controller::new_gamepad(*handle as *mut std::ffi::c_void, gamepad_type, screencap)
-                .map_err(|e| e.to_string())
+            Controller::new_gamepad(*handle as *mut std::ffi::c_void, gamepad_type, screencap).map_err(|e| e.to_string())
+        }
+        ControllerConfig::Linux { screencap_method, input_method, pipewire_source, wlr_socket_path, pw_socket_fd, pw_node_id, uinput_path, uinput_screen_width, uinput_screen_height, eis_socket_path, use_win32_vk_code, .. } => {
+            ensure_linux_maafw_version()?;
+            let mut pw_fd = *pw_socket_fd;
+            let mut pw_node = *pw_node_id;
+            if pipewire_source.as_deref() == Some("Portal") {
+                let helper = maa_framework::toolkit::PortalHelper::new().map_err(|e| e.to_string())?;
+                helper.set_persist(true);
+                helper.open_stream().map_err(|e| e.to_string())?;
+                pw_fd = Some(helper.get_pipewire_fd());
+                pw_node = Some(helper.get_pipewire_node_id());
+            }
+            let cfg = build_linux_controller_config(*screencap_method, *input_method, wlr_socket_path.as_deref(), pw_fd, pw_node, uinput_path.as_deref(), *uinput_screen_width, *uinput_screen_height, eis_socket_path.as_deref(), *use_win32_vk_code);
+            Controller::new_linux(&cfg).map_err(|e| e.to_string())
         }
     }
 }
@@ -376,8 +425,6 @@ fn update_instance_controller(
             info!("ControllerPool: removed unused entry for old config");
         }
     }
-
-    super::assist_monitor::discard_runtime(state, instance_id);
 
     Ok(())
 }
@@ -534,7 +581,7 @@ pub fn maa_check_version(state: State<Arc<MaaState>>) -> Result<VersionCheckResu
         return Err("MaaFramework not initialized".to_string());
     }
 
-    // 去掉版本号前缀 'v'（如 "v5.5.0-beta.1" -> "5.5.0-beta.1"）
+    // 去掉版本号前缀 'v'（如 "v5.12.1" -> "5.12.1"）
     let current_clean = current_str.trim_start_matches('v');
     let min_clean = MIN_MAAFW_VERSION.trim_start_matches('v');
 
@@ -704,6 +751,47 @@ pub async fn maa_find_wlroots_sockets(
     find_wlroots_sockets_impl(state.inner().clone()).await
 }
 
+/// 查找 gamescope 实例（同一 display 上的 PipeWire 截图节点 + libei EIS socket）
+/// 内部实现（可从 Tauri 命令和 HTTP 处理器共享调用）
+pub async fn find_gamescope_instances_impl(
+    state: Arc<MaaState>,
+) -> Result<Vec<GamescopeInstance>, String> {
+    tokio::task::spawn_blocking(move || {
+        ensure_linux_maafw_version()?;
+        let instances = Toolkit::find_gamescope_instances().map_err(|e| e.to_string())?;
+
+        let result_instances: Vec<GamescopeInstance> = instances
+            .into_iter()
+            .map(|i| GamescopeInstance {
+                display_no: i.display_no,
+                pipewire_node_id: i.pipewire_node_id,
+                eis_socket_path: i.eis_socket_path,
+            })
+            .collect();
+
+        if let Ok(mut cached) = state.cached_gamescope_instances.lock() {
+            *cached = result_instances.clone();
+        }
+
+        info!(
+            "find_gamescope_instances_impl: {} instance(s)",
+            result_instances.len()
+        );
+        Ok(result_instances)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// 查找 gamescope 实例
+#[tauri::command]
+pub async fn maa_find_gamescope_instances(
+    state: State<'_, Arc<MaaState>>,
+) -> Result<Vec<GamescopeInstance>, String> {
+    info!("maa_find_gamescope_instances called");
+    find_gamescope_instances_impl(state.inner().clone()).await
+}
+
 // ============================================================================
 // 实例管理命令
 // ============================================================================
@@ -769,7 +857,6 @@ pub fn destroy_instance_impl(state: &Arc<MaaState>, instance_id: &str) -> Result
     if let Ok(mut log_buffer) = state.log_buffer.lock() {
         log_buffer.clear_instance(instance_id);
     }
-    super::assist_monitor::discard_runtime(state, instance_id);
 
     Ok(())
 }
@@ -839,7 +926,181 @@ pub async fn connect_controller_impl(
             config
         );
 
-        let controller = create_controller_from_config(&config)?;
+        let controller = match &config {
+            ControllerConfig::Adb {
+                adb_path,
+                address,
+                screencap_methods,
+                input_methods,
+                config,
+                ..
+            } => {
+                let screencap = screencap_methods.parse::<u64>().map_err(|e| {
+                    format!("Invalid screencap_methods '{}': {}", screencap_methods, e)
+                })?;
+                let input = input_methods
+                    .parse::<u64>()
+                    .map_err(|e| format!("Invalid input_methods '{}': {}", input_methods, e))?;
+                let agent_path = get_maafw_dir()
+                    .map(|p| p.join("MaaAgentBinary").to_string_lossy().to_string())
+                    .unwrap_or_else(|_| "./MaaAgentBinary".to_string());
+
+                AdbControllerBuilder::new(adb_path, address)
+                    .screencap_methods(
+                        maa_framework::common::AdbScreencapMethod::from_bits_truncate(screencap)
+                            .bits(),
+                    )
+                    .input_methods(
+                        maa_framework::common::AdbInputMethod::from_bits_truncate(input).bits(),
+                    )
+                    .config(config)
+                    .agent_path(&agent_path)
+                    .build()
+                    .map_err(|e| e.to_string())?
+            }
+            ControllerConfig::Win32 {
+                handle,
+                screencap_method,
+                mouse_method,
+                keyboard_method,
+                ..
+            } => {
+                let hwnd = *handle as *mut std::ffi::c_void;
+                Controller::new_win32(
+                    hwnd,
+                    maa_framework::common::Win32ScreencapMethod::from_bits_truncate(
+                        *screencap_method,
+                    )
+                    .bits(),
+                    maa_framework::common::Win32InputMethod::from_bits_truncate(*mouse_method)
+                        .bits(),
+                    maa_framework::common::Win32InputMethod::from_bits_truncate(*keyboard_method)
+                        .bits(),
+                )
+                .map_err(|e| e.to_string())?
+            }
+            ControllerConfig::MacOS {
+                handle,
+                screencap_method,
+                input_method,
+                ..
+            } => create_macos_controller(*handle, *screencap_method, *input_method)?,
+            ControllerConfig::WlRoots {
+                wlr_socket_path,
+                use_win32_vk_code,
+                ..
+            } => {
+                // 迁移：WlRoots 已废弃，内部改用 Linux 控制器（Wlr 截图 + Wlr 输入）
+                ensure_linux_maafw_version()?;
+                let linux_config = build_linux_controller_config(
+                    maa_framework::common::LinuxScreencapMethod::WLR.bits(),
+                    maa_framework::common::LinuxInputMethod::WLR.bits(),
+                    Some(wlr_socket_path.as_str()),
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    Some(*use_win32_vk_code),
+                );
+                Controller::new_linux(&linux_config).map_err(|e| e.to_string())?
+            }
+            ControllerConfig::PlayCover { address, uuid, .. } => {
+                let uuid_str = uuid.as_deref().unwrap_or("");
+                Controller::new_playcover(address, uuid_str).map_err(|e| e.to_string())?
+            }
+            ControllerConfig::Dummy {
+                display_short_side, ..
+            } => {
+                let short = display_short_side.unwrap_or(720);
+                Controller::new_custom(crate::dummy_controller::DummyController::new(short))
+                    .map_err(|e| e.to_string())?
+            }
+            ControllerConfig::Gamepad {
+                handle,
+                gamepad_type,
+                screencap_method,
+                ..
+            } => {
+                let hwnd = *handle as *mut std::ffi::c_void;
+                let gp_type = match gamepad_type.as_deref() {
+                    Some("DualShock4") | Some("DS4") => {
+                        maa_framework::common::GamepadType::DualShock4
+                    }
+                    _ => maa_framework::common::GamepadType::Xbox360,
+                };
+                let screencap = screencap_method
+                    .map(|v| maa_framework::common::Win32ScreencapMethod::from_bits_truncate(v))
+                    .unwrap_or(maa_framework::common::Win32ScreencapMethod::DXGI_DESKTOP_DUP);
+
+                Controller::new_gamepad(hwnd, gp_type, screencap).map_err(|e| e.to_string())?
+            }
+            ControllerConfig::Linux {
+                screencap_method,
+                input_method,
+                pipewire_source,
+                wlr_socket_path,
+                pw_socket_fd,
+                pw_node_id,
+                uinput_path,
+                uinput_screen_width,
+                uinput_screen_height,
+                eis_socket_path,
+                use_win32_vk_code,
+                ..
+            } => {
+                ensure_linux_maafw_version()?;
+                let mut pw_fd = *pw_socket_fd;
+                let mut pw_node = *pw_node_id;
+
+                // Portal 截图：在后端打开 ScreenCast 门户，FD 不离开后端进程
+                if pipewire_source.as_deref() == Some("Portal") {
+                    let token = {
+                        let guard = state_arc
+                            .portal_restore_token
+                            .lock()
+                            .map_err(|e| e.to_string())?;
+                        guard.clone()
+                    };
+
+                    let helper =
+                        maa_framework::toolkit::PortalHelper::new().map_err(|e| e.to_string())?;
+
+                    if let Some(t) = token.as_deref() {
+                        if !t.is_empty() {
+                            helper.set_restore_token(t).map_err(|e| e.to_string())?;
+                        }
+                    }
+                    helper.set_persist(true);
+                    helper.open_stream().map_err(|e| e.to_string())?;
+
+                    pw_fd = Some(helper.get_pipewire_fd());
+                    pw_node = Some(helper.get_pipewire_node_id());
+
+                    let new_token = helper.get_restore_token();
+                    if !new_token.is_empty() {
+                        if let Ok(mut guard) = state_arc.portal_restore_token.lock() {
+                            *guard = Some(new_token);
+                        }
+                    }
+                }
+
+                let linux_config = build_linux_controller_config(
+                    *screencap_method,
+                    *input_method,
+                    wlr_socket_path.as_deref(),
+                    pw_fd,
+                    pw_node,
+                    uinput_path.as_deref(),
+                    *uinput_screen_width,
+                    *uinput_screen_height,
+                    eis_socket_path.as_deref(),
+                    *use_win32_vk_code,
+                );
+                Controller::new_linux(&linux_config).map_err(|e| e.to_string())?
+            }
+        };
 
         // 注册回调（使用 on_event 抽象，Tauri 命令传入 emit_callback_event，HTTP 处理器传入无操作或 WebSocket 推送）
         let on_event_clone = on_event.clone();
@@ -869,6 +1130,9 @@ pub async fn connect_controller_impl(
                 display_short_side, ..
             }
             | ControllerConfig::Dummy {
+                display_short_side, ..
+            }
+            | ControllerConfig::Linux {
                 display_short_side, ..
             } => display_short_side.unwrap_or(720),
         };
@@ -1038,9 +1302,6 @@ pub fn load_resource_impl(
             Ok(job) => {
                 info!("Posted resource bundle: {} -> id: {}", normalized, job.id);
                 res_ids.push(job.id);
-                if !instance.resource_paths.contains(&normalized) {
-                    instance.resource_paths.push(normalized.clone());
-                }
             }
             Err(e) => {
                 warn!("Failed to post resource bundle {}: {}", normalized, e);
@@ -1122,9 +1383,7 @@ pub fn maa_destroy_resource(
 
     // 销毁旧的资源
     instance.resource = None;
-    instance.resource_paths.clear();
     instance.tasker = None;
-    super::assist_monitor::discard_runtime(&state, &instance_id);
 
     Ok(())
 }
@@ -1227,14 +1486,6 @@ pub fn run_task_impl(
         task_run_state.overall_status = Some("Running".to_string());
     }
 
-    // MaaYYs 的悬赏识别只跟随这一轮主任务运行一次。
-    drop(instances);
-    super::assist_monitor::start_for_instance(
-        app.clone(),
-        Arc::clone(state),
-        instance_id.to_string(),
-    );
-
     Ok(task_id)
 }
 
@@ -1331,7 +1582,6 @@ pub fn stop_task_impl(state: &MaaState, instance_id: &str) -> Result<(), String>
 
     // 遥测：用户取消，以 cancelled 结束当前运行的 Transaction（幂等，仅首次生效）
     super::telemetry::on_run_cancelled(instance_id);
-    super::assist_monitor::request_stop(state, instance_id);
 
     tasker.post_stop().map_err(|e| e.to_string())?;
     Ok(())

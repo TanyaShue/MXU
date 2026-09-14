@@ -16,7 +16,13 @@ import type {
   ScreenshotFrameRate,
   HotkeySettings,
 } from '@/types/config';
-import type { ConnectionStatus, TaskStatus, AdbDevice, Win32Window } from '@/types/maa';
+import type {
+  ConnectionStatus,
+  TaskStatus,
+  AdbDevice,
+  Win32Window,
+  GamescopeInstance,
+} from '@/types/maa';
 import type { AccentColor, CustomAccent } from '@/themes';
 
 /** 单个任务的运行状态 */
@@ -130,6 +136,10 @@ export interface AppState {
   currentPage: PageView;
   setCurrentPage: (page: PageView) => void;
 
+  /** 进入设置页后需要自动滚动到的分区 id（如 'update'），由 SettingsPage 消费后清空 */
+  settingsTargetSection: string | null;
+  setSettingsTargetSection: (section: string | null) => void;
+
   // 调试选项（不落盘，每次启动默认关闭）
   saveDraw: boolean;
   setSaveDraw: (enabled: boolean) => void;
@@ -193,6 +203,8 @@ export interface AppState {
   removeTaskFromInstance: (instanceId: string, taskId: string) => void;
   reorderTasks: (instanceId: string, oldIndex: number, newIndex: number) => void;
   toggleTaskEnabled: (instanceId: string, taskId: string) => void;
+  setTaskRunOnce: (instanceId: string, taskId: string, runOnce: boolean) => void;
+  clearAllTaskRunOnce: (instanceId: string) => void;
   toggleTaskExpanded: (instanceId: string, taskId: string) => void;
   toggleOptionCollapsed: (instanceId: string, taskId: string, optionKey: string) => void;
   setTaskOptionValue: (
@@ -288,9 +300,11 @@ export interface AppState {
   cachedAdbDevices: AdbDevice[];
   cachedWin32Windows: Win32Window[];
   cachedWlrootsSockets: string[];
+  cachedGamescopeInstances: GamescopeInstance[];
   setCachedAdbDevices: (devices: AdbDevice[]) => void;
   setCachedWin32Windows: (windows: Win32Window[]) => void;
   setCachedWlrootsSockets: (sockets: string[]) => void;
+  setCachedGamescopeInstances: (instances: GamescopeInstance[]) => void;
 
   // 从后端恢复 MAA 运行时状态
   restoreBackendStates: (
@@ -314,6 +328,7 @@ export interface AppState {
       cachedAdbDevices: AdbDevice[];
       cachedWin32Windows: Win32Window[];
       cachedWlrootsSockets: string[];
+      cachedGamescopeInstances: GamescopeInstance[];
     },
     options?: { skipRunningState?: boolean },
   ) => void;
@@ -449,6 +464,8 @@ export interface AppState {
   downloadStatus: DownloadStatus;
   downloadProgress: DownloadProgress | null;
   downloadSavePath: string | null;
+  /** 下载速度持续低于阈值的起始时间戳，速度回升或下载结束时置为 null */
+  slowDownloadSince: number | null;
   setDownloadStatus: (status: DownloadStatus) => void;
   setDownloadProgress: (progress: DownloadProgress | null) => void;
   setDownloadSavePath: (path: string | null) => void;

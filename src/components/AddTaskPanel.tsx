@@ -29,6 +29,7 @@ import {
   getAllMxuSpecialTasks,
   MXU_LAUNCH_TASK_NAME,
   MXU_KILLPROC_TASK_NAME,
+  MXU_WEBHOOK_TASK_NAME,
 } from '@/types/specialTasks';
 import { getPretaskItems, pretaskName, pretaskItemId, buildPretaskDef } from '@/types/pretasks';
 import { generateId } from '@/stores/helpers';
@@ -169,7 +170,6 @@ export function AddTaskPanel() {
     getActiveInstance,
     addTaskToInstance,
     addMxuSpecialTask,
-    addRandomTaskRange,
     resolveI18nText,
     language,
     basePath,
@@ -184,9 +184,12 @@ export function AddTaskPanel() {
     setAddTaskPanelHeight,
   } = useAppStore();
 
-  // 获取所有注册的特殊任务
+  // 仅显示允许在新增面板展示的特殊任务；Webhook 保留注册兼容但隐藏新增入口。
   const specialTasks = useMemo(
-    () => getAllMxuSpecialTasks().filter((task) => task.visibleInAddPanel !== false),
+    () =>
+      getAllMxuSpecialTasks().filter(
+        (task) => task.visibleInAddPanel !== false && task.taskName !== MXU_WEBHOOK_TASK_NAME,
+      ),
     [],
   );
 
@@ -271,13 +274,6 @@ export function AddTaskPanel() {
 
     // 收起添加任务面板
     setShowAddTaskPanel(false);
-
-    // 随机任务是一个结构化区间，原子追加开始/结束两个标记，不在运行中修改。
-    if (specialTask.addPairTaskName) {
-      if (instance.isRunning) return;
-      addRandomTaskRange(instance.id);
-      return;
-    }
 
     // 根据 connectedProgramPath 为特定任务提供默认值
     const connectedPath = instance.savedDevice?.connectedProgramPath;
@@ -845,15 +841,12 @@ export function AddTaskPanel() {
                         <button
                           key={specialTask.taskName}
                           onClick={() => handleAddSpecialTask(specialTask)}
-                          disabled={instance.isRunning && !!specialTask.addPairTaskName}
                           className={clsx(
                             'flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs transition-colors',
                             'bg-bg-secondary/70 hover:bg-bg-hover text-text-secondary border border-border/70 hover:border-accent',
                           )}
                         >
-                          <span>
-                            {t(specialTask.addLabel || specialTask.taskDef.label || specialTask.taskName)}
-                          </span>
+                          <span>{t(specialTask.taskDef.label || specialTask.taskName)}</span>
                         </button>
                       );
                     })}

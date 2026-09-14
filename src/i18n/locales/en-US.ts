@@ -118,7 +118,7 @@ export default {
       'Show a confirmation dialog before delete/clear list and other dangerous actions.',
     helpImproveSoftware: 'Help Improve the Software',
     helpImproveSoftwareHint:
-      'Anonymously send crash reports and task statistics to help find common issues.',
+      'Anonymously send crash reports, task statistics, and relevant logs and error screenshots from failed tasks to help find common issues.',
     helpImproveSoftwareDisabledHint:
       'Anonymous data reporting is disabled in debug / development builds.',
     maxLogsPerInstance: 'Max logs per instance',
@@ -128,7 +128,7 @@ export default {
     resetWindowLayoutHint: 'Restore window size to default and center the window',
     autoClearLogsOnLaunch: 'Auto-clear Runtime Logs',
     autoClearLogsOnLaunchHint:
-      'Automatically clear runtime logs and delete old log files along with debug screenshots in on_error and vision every time the project is launched',
+      'Automatically clear runtime logs and debug files every time the project is launched',
   },
 
   // Special tasks
@@ -208,6 +208,8 @@ export default {
       restart: 'Restart',
       screenoff: 'Turn Off Screen',
       sleep: 'Sleep',
+      mute: 'Mute',
+      unmute: 'Unmute',
     },
   },
 
@@ -229,6 +231,12 @@ export default {
     taskSkippedController: 'Task "{{taskName}}" does not support current controller',
     taskSkippedResource: 'Task "{{taskName}}" does not support current resource',
     noCompatibleTasks: 'No tasks compatible with current controller and resource',
+    checkboxTaskScope: 'task "{{task}}"',
+    checkboxGlobalScope: 'global settings',
+    checkboxMinimumNotMet:
+      'Option "{{option}}" in {{scope}} requires at least {{min}} selections; currently {{count}}',
+    checkboxMaximumExceeded:
+      'Option "{{option}}" in {{scope}} allows at most {{max}} selections; currently {{count}}',
     // Auto connect
     autoConnect: {
       searching: 'Searching devices...',
@@ -249,6 +257,10 @@ export default {
         'No window was previously selected. Automatically matched "{{name}}". To change, select manually in Connection Settings — your choice will be remembered next time.',
       resourceFailed: 'Resource loading failed',
       startFailed: 'Failed to start tasks',
+      alreadyRunning: 'Tasks are already running or a pre-action is still in progress',
+      taskNotFound: 'The specified task does not exist or has been deleted',
+      noRunnableTasks: 'No runnable tasks; check the task definitions and entry configuration',
+      primaryTasksIncomplete: 'Primary tasks did not finish normally; trailing tasks were skipped',
       workstationLocked: 'The computer is locked. Please unlock it before running tasks.',
       agentStartParams: 'Agent #{{index}} start params: {{cmd}}  (cwd: {{cwd}})',
       agentSpawnHintFileNotFound:
@@ -274,6 +286,7 @@ export default {
     removeConfirmMessage: 'Are you sure you want to delete this task?',
     rename: 'Rename',
     clickToToggle: 'Click to toggle',
+    runOnceHint: 'Run once: included in the next start only',
     renameTask: 'Rename Task',
     customName: 'Custom Name',
     originalName: 'Original Name',
@@ -366,6 +379,12 @@ export default {
     hotkeyCapturing: 'Press keys...',
     expandOptions: 'Expand sub-options',
     collapseOptions: 'Collapse sub-options',
+    checkboxCountRange: 'at least {{min}}, at most {{max}}',
+    checkboxCountMinimum: 'at least {{min}}',
+    checkboxCountMaximum: 'at most {{max}}',
+    checkboxSelectedCount: '{{count}} selected ({{constraint}})',
+    checkboxMinimumRequired: 'Select at least {{min}} (currently {{count}})',
+    checkboxMaximumReached: 'You can select at most {{max}}',
   },
 
   // Preset
@@ -397,6 +416,10 @@ export default {
     adb: 'Android Device',
     win32: 'Windows Window',
     wlroots: 'WlRoots (Linux)',
+    linux: 'Linux',
+    portal: 'Portal',
+    uinputWidth: 'Width (px)',
+    uinputHeight: 'Height (px)',
     playcover: 'PlayCover (macOS)',
     macos: 'macOS Window',
     macosPermissionsRequired:
@@ -407,6 +430,7 @@ export default {
     macosSystemVersionRequired: 'The native macOS window controller requires macOS 14.0 or later.',
     macosSystemVersionDetectionFailed:
       'The current macOS version could not be detected. Check the logs for details.',
+    linuxVersionRequired: 'The Linux controller requires MaaFramework v5.13.0-beta.3 or later.',
     gamepad: 'Gamepad',
     connecting: 'Connecting...',
     connected: 'Connected',
@@ -525,7 +549,6 @@ export default {
       hotkeyActionStart: 'Start tasks',
       hotkeyActionStop: 'Stop tasks',
       hotkeyStartSuccess: 'Started tasks via hotkey:',
-      hotkeyStartFailed: 'Failed to start tasks via hotkey',
       hotkeyStopSuccess: 'Stopped tasks via hotkey',
       hotkeyStopFailed: 'Failed to stop tasks via hotkey',
     },
@@ -695,6 +718,7 @@ export default {
       ' is an independent third-party accelerated download service that requires a paid subscription, not a fee charged by "{{projectName}}". Its operating costs are covered by subscription revenue, with a portion supporting project developers. Subscribe for high-speed downloads while supporting ongoing development. Without a CDK, downloads will fall back to GitHub. If that fails, please configure a network proxy.',
     getCdk: 'No CDKey? Subscribe Now',
     cdkHint: 'Please check if your CDK is correct or has expired',
+    slowDownloadHint: 'Other channels',
     checkUpdate: 'Check for Updates',
     checking: 'Checking...',
     upToDate: 'You are up to date ({{version}})',
@@ -857,6 +881,10 @@ export default {
     deselectAll: 'Deselect All',
     expandAllTasks: 'Expand All',
     collapseAllTasks: 'Collapse All',
+    runFromHere: 'Run From Here',
+    runSingleTask: 'Run This Task Only',
+    runOnceTask: 'Run Once',
+    clearRunOnceTask: 'Clear Run Once',
 
     // Screenshot panel context menu
     reconnect: 'Reconnect',

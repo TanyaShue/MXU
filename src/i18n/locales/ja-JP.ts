@@ -118,7 +118,7 @@ export default {
     confirmBeforeDeleteHint: '削除/一覧クリア等の危険な操作の前に確認ダイアログを表示します',
     helpImproveSoftware: 'ソフトウェアの改善に協力',
     helpImproveSoftwareHint:
-      'クラッシュとタスク統計を匿名で送信し、よくある問題の発見に役立てます。',
+      'クラッシュ、タスク統計、失敗したタスクの関連ログとエラースクリーンショットを匿名で送信し、よくある問題の発見に役立てます。',
     helpImproveSoftwareDisabledHint: 'デバッグ / 開発版のため、匿名データ送信は無効になっています',
     maxLogsPerInstance: 'インスタンスあたりのログ上限',
     maxLogsPerInstanceHint: '上限を超えると古いログから自動的に破棄します（推奨 500～2000）',
@@ -126,7 +126,7 @@ export default {
     resetWindowLayoutHint: 'ウィンドウサイズをデフォルトに戻し、中央に配置します',
     autoClearLogsOnLaunch: '実行ログの自動クリア',
     autoClearLogsOnLaunchHint:
-      'プロジェクトの起動時に自動で実行ログをクリアし、古いログファイルと on_error・vision 内のデバッグスクリーンショットを削除します',
+      'プロジェクトの起動時に実行ログとデバッグファイルを自動でクリアします',
   },
 
   // 特殊タスク
@@ -206,6 +206,8 @@ export default {
       restart: '再起動',
       screenoff: '画面オフ',
       sleep: 'スリープ',
+      mute: 'ミュート',
+      unmute: 'ミュート解除',
     },
   },
 
@@ -223,6 +225,12 @@ export default {
     stopTasks: '実行停止',
     startingTasks: '開始中...',
     stoppingTasks: '停止中...',
+    checkboxTaskScope: 'タスク「{{task}}」',
+    checkboxGlobalScope: 'グローバル設定',
+    checkboxMinimumNotMet:
+      '{{scope}}のオプション「{{option}}」は少なくとも {{min}} 個必要です（現在 {{count}} 個）',
+    checkboxMaximumExceeded:
+      '{{scope}}のオプション「{{option}}」は最大 {{max}} 個までです（現在 {{count}} 個）',
     // 自動接続関連
     autoConnect: {
       searching: 'デバイスを検索中...',
@@ -243,6 +251,10 @@ export default {
         'ウィンドウが未設定のため、「{{name}}」を自動的に選択しました。変更する場合は接続設定で手動選択してください。次回以降は選択内容が保存されます。',
       resourceFailed: 'リソースの読み込みに失敗しました',
       startFailed: 'タスクの開始に失敗しました',
+      alreadyRunning: 'タスクは既に実行中か、前処理を実行しています',
+      taskNotFound: '指定されたタスクが存在しないか、削除されています',
+      noRunnableTasks: '実行可能なタスクがありません。タスク定義とエントリ設定を確認してください',
+      primaryTasksIncomplete: '前段タスクが正常に終了しなかったため、後段タスクをスキップしました',
       workstationLocked:
         'パソコンがロック画面の状態です。ロックを解除してからタスクを実行してください',
       agentStartParams: 'Agent #{{index}} 起動パラメータ: {{cmd}}  (作業ディレクトリ: {{cwd}})',
@@ -269,6 +281,7 @@ export default {
     removeConfirmMessage: 'このタスクを削除してもよろしいですか？',
     rename: '名前を変更',
     clickToToggle: 'クリックで切替',
+    runOnceHint: '単発実行：次回起動時に1回だけ実行',
     renameTask: 'タスク名を変更',
     customName: 'カスタム名',
     originalName: '元の名前',
@@ -361,6 +374,12 @@ export default {
     hotkeyCapturing: 'キーを押してください...',
     expandOptions: '子オプションを展開',
     collapseOptions: '子オプションを折りたたむ',
+    checkboxCountRange: '{{min}} 個以上、{{max}} 個以下',
+    checkboxCountMinimum: '{{min}} 個以上',
+    checkboxCountMaximum: '{{max}} 個以下',
+    checkboxSelectedCount: '{{count}} 個選択中（{{constraint}}）',
+    checkboxMinimumRequired: '少なくとも {{min}} 個選択してください（現在 {{count}} 個）',
+    checkboxMaximumReached: '選択できるのは最大 {{max}} 個です',
   },
 
   // プリセット
@@ -392,6 +411,10 @@ export default {
     adb: 'Android デバイス',
     win32: 'Windows ウィンドウ',
     wlroots: 'WlRoots (Linux)',
+    linux: 'Linux',
+    portal: 'Portal',
+    uinputWidth: '幅 (px)',
+    uinputHeight: '高さ (px)',
     playcover: 'PlayCover (macOS)',
     macos: 'macOS ウィンドウ',
     macosPermissionsRequired:
@@ -404,6 +427,7 @@ export default {
       'macOS ネイティブウィンドウコントローラーには macOS 14.0 以降が必要です。',
     macosSystemVersionDetectionFailed:
       '現在の macOS バージョンを判定できませんでした。詳細はログを確認してください。',
+    linuxVersionRequired: 'Linux コントローラーには MaaFramework v5.13.0-beta.3 以降が必要です。',
     gamepad: 'ゲームパッド',
     connecting: '接続中...',
     connected: '接続済み',
@@ -523,7 +547,6 @@ export default {
       hotkeyActionStart: 'タスク開始',
       hotkeyActionStop: 'タスク停止',
       hotkeyStartSuccess: 'ショートカットキーでタスクを開始しました：',
-      hotkeyStartFailed: 'ショートカットキーでタスクを開始できませんでした',
       hotkeyStopSuccess: 'ショートカットキーでタスクを停止しました',
       hotkeyStopFailed: 'ショートカットキーでタスクを停止できませんでした',
     },
@@ -694,6 +717,7 @@ export default {
       ' は独立したサードパーティの高速ダウンロードサービスで、有料サブスクリプションが必要です。これは「{{projectName}}」の料金ではありません。運営費はサブスクリプション収入で賄われ、一部は開発者に還元されます。CDK を購読して高速ダウンロードをお楽しみください。CDK を入力しない場合、GitHub からダウンロードします。失敗した場合は、ネットワークプロキシを設定してください。',
     getCdk: 'CDKをお持ちでない方はこちら',
     cdkHint: 'CDK が正しいか、または有効期限が切れていないか確認してください',
+    slowDownloadHint: '他の入手先',
     checkUpdate: '更新を確認',
     checking: '確認中...',
     upToDate: '最新バージョンです ({{version}})',
@@ -858,6 +882,10 @@ export default {
     deselectAll: 'すべて解除',
     expandAllTasks: 'すべて展開',
     collapseAllTasks: 'すべて折りたたむ',
+    runFromHere: 'ここから実行',
+    runSingleTask: 'このタスクのみ実行',
+    runOnceTask: '単発実行',
+    clearRunOnceTask: '単発実行を解除',
 
     // スクリーンショットパネルのコンテキストメニュー
     reconnect: '再接続',

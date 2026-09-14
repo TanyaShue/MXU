@@ -296,6 +296,9 @@ async fn take_or_create_runtime(
         | ControllerConfig::Dummy {
             display_short_side, ..
         } => display_short_side.unwrap_or(720),
+        ControllerConfig::Linux {
+            display_short_side, ..
+        } => display_short_side.unwrap_or(720),
     };
     controller
         .set_screenshot_target_short_side(display_short_side)

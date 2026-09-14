@@ -114,15 +114,15 @@ export default {
     confirmBeforeDelete: '刪除操作需要二次確認',
     confirmBeforeDeleteHint: '刪除任務、清空列表等危險操作會先彈出確認對話框',
     helpImproveSoftware: '協助改進軟體',
-    helpImproveSoftwareHint: '匿名傳送崩潰與任務統計，協助發現常見問題',
+    helpImproveSoftwareHint:
+      '匿名傳送崩潰、任務統計及失敗任務的相關日誌與錯誤截圖，協助發現常見問題',
     helpImproveSoftwareDisabledHint: '目前為除錯 / 開發版本，已停用匿名資料回報',
     maxLogsPerInstance: '每個實例保留的日誌上限',
     maxLogsPerInstanceHint: '超出上限會自動丟棄最舊的日誌（建議 500～2000）',
     resetWindowLayout: '重設視窗佈局',
     resetWindowLayoutHint: '將視窗大小恢復為預設值，並置中顯示',
     autoClearLogsOnLaunch: '自動清理運行日誌',
-    autoClearLogsOnLaunchHint:
-      '每次啟動項目時，自動清理運行日誌，並刪除舊的日誌檔案與 on_error、vision 目錄下的除錯截圖',
+    autoClearLogsOnLaunchHint: '每次啟動項目時，自動清理運行日誌與除錯檔案',
   },
 
   // 特殊任務
@@ -200,6 +200,8 @@ export default {
       restart: '重新啟動',
       screenoff: '關閉螢幕',
       sleep: '睡眠',
+      mute: '靜音',
+      unmute: '取消靜音',
     },
   },
 
@@ -217,6 +219,12 @@ export default {
     stopTasks: '停止任務',
     startingTasks: '啟動中...',
     stoppingTasks: '停止中...',
+    checkboxTaskScope: '任務「{{task}}」',
+    checkboxGlobalScope: '全域設定',
+    checkboxMinimumNotMet:
+      '{{scope}}的選項「{{option}}」至少需要選擇 {{min}} 項，目前選擇了 {{count}} 項',
+    checkboxMaximumExceeded:
+      '{{scope}}的選項「{{option}}」最多只能選擇 {{max}} 項，目前選擇了 {{count}} 項',
     // 自動連接相关
     autoConnect: {
       searching: '搜尋裝置...',
@@ -237,6 +245,10 @@ export default {
         '尚未手動選擇過視窗，已自動匹配到「{{name}}」。如需更換，請在連接設定中手動選擇，下次將記住您的選擇。',
       resourceFailed: '資源載入失敗',
       startFailed: '任務啟動失敗',
+      alreadyRunning: '任務已在執行或正在執行前置動作',
+      taskNotFound: '指定的任務不存在或已被刪除',
+      noRunnableTasks: '沒有可執行的任務，請檢查任務定義與入口設定',
+      primaryTasksIncomplete: '前段任務未正常結束，已略過收尾特殊任務',
       workstationLocked: '偵測到電腦處於鎖定畫面狀態，請先解鎖後再執行任務',
       agentStartParams: 'Agent #{{index}} 啟動參數: {{cmd}}  (工作目錄: {{cwd}})',
       agentSpawnHintFileNotFound: '請先檢查 Agent 是否被防毒軟體攔截，確認無誤後重新覆蓋安裝。',
@@ -260,6 +272,7 @@ export default {
     removeConfirmMessage: '確定要刪除這個任務嗎？',
     rename: '重新命名',
     clickToToggle: '單擊選中/取消',
+    runOnceHint: '單次執行：下次啟動時執行一次',
     renameTask: '重新命名任務',
     customName: '自訂名稱',
     originalName: '原始名稱',
@@ -351,6 +364,12 @@ export default {
     hotkeyCapturing: '按下快捷鍵...',
     expandOptions: '展開子選項',
     collapseOptions: '收起子選項',
+    checkboxCountRange: '至少 {{min}} 項，最多 {{max}} 項',
+    checkboxCountMinimum: '至少 {{min}} 項',
+    checkboxCountMaximum: '最多 {{max}} 項',
+    checkboxSelectedCount: '已選擇 {{count}} 項（{{constraint}}）',
+    checkboxMinimumRequired: '至少選擇 {{min}} 項（目前 {{count}} 項）',
+    checkboxMaximumReached: '最多只能選擇 {{max}} 項',
   },
 
   // 預設設定
@@ -381,6 +400,10 @@ export default {
     adb: 'Android 裝置',
     win32: 'Windows 視窗',
     wlroots: 'WlRoots (Linux)',
+    linux: 'Linux',
+    portal: 'Portal',
+    uinputWidth: '寬 (px)',
+    uinputHeight: '高 (px)',
     playcover: 'PlayCover (macOS)',
     macos: 'macOS 視窗',
     macosPermissionsRequired:
@@ -389,6 +412,7 @@ export default {
     macosVersionRequired: 'macOS 原生視窗控制器需要 MaaFramework v5.10.0-beta.1 或更新版本。',
     macosSystemVersionRequired: 'macOS 原生視窗控制器需要 macOS 14.0 或更新版本。',
     macosSystemVersionDetectionFailed: '無法識別目前的 macOS 系統版本，請查看日誌以瞭解詳情。',
+    linuxVersionRequired: 'Linux 控制器需要 MaaFramework v5.13.0-beta.3 或更新版本。',
     gamepad: '遊戲控制器',
     connecting: '連接中...',
     connected: '已連接',
@@ -504,7 +528,6 @@ export default {
       hotkeyActionStart: '開始任務',
       hotkeyActionStop: '停止任務',
       hotkeyStartSuccess: '透過快捷鍵開始任務：',
-      hotkeyStartFailed: '無法透過快捷鍵開始任務',
       hotkeyStopSuccess: '透過快捷鍵停止任務',
       hotkeyStopFailed: '無法透過快捷鍵停止任務',
     },
@@ -666,6 +689,7 @@ export default {
       ' 是獨立的第三方加速下載服務，需要付費使用，並非「{{projectName}}」收費。其營運成本由訂閱收入支撐，部分收益將回饋專案開發者。歡迎訂閱 CDK 享受高速下載，同時支援專案持續開發。未填寫 CDK 時將自動透過 GitHub 下載，若失敗請嘗試設定網路代理。',
     getCdk: '沒有CDK？立即訂閱',
     cdkHint: '請檢查您的 CDK 是否正確或已過期',
+    slowDownloadHint: '其他管道',
     checkUpdate: '檢查更新',
     checking: '正在檢查...',
     upToDate: '目前已是最新版本 ({{version}})',
@@ -828,6 +852,10 @@ export default {
     deselectAll: '取消全選',
     expandAllTasks: '展開全部',
     collapseAllTasks: '摺疊全部',
+    runFromHere: '從此處執行',
+    runSingleTask: '單獨執行',
+    runOnceTask: '單次執行',
+    clearRunOnceTask: '取消單次執行',
 
     // 截圖面板右鍵選單
     reconnect: '重新連接',

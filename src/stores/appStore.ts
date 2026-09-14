@@ -11,7 +11,7 @@ import {
   resolveThemeMode,
   unregisterCustomAccent,
 } from '@/themes';
-import type { LegacyActionConfig, MxuConfig, RecentlyClosedInstance } from '@/types/config';
+import type { LegacyActionConfig, MxuConfig, RecentlyClosedInstance, SavedTask } from '@/types/config';
 import {
   clampAddTaskPanelHeight,
   DEFAULT_MAX_LOGS_PER_INSTANCE,
@@ -68,8 +68,15 @@ import {
 } from './helpers';
 import { persistRuntimeLogs } from '@/utils/runtimeLogPersistence';
 import { cacheTaskEnabledForController } from '@/utils/taskControllerCache';
+import {
+  decryptPasswordOptionValues,
+  encryptPasswordOptionValues,
+} from '@/utils/passwordOptionValues';
 // 从独立模块导入类型和辅助函数
 import type { AppState, LogEntry, TaskRunStatus } from './types';
+
+const SLOW_DOWNLOAD_SPEED_BPS = 1024 * 1024;
+export const SLOW_DOWNLOAD_DURATION_MS = 5000;
 
 /**
  * 规范化定时策略：仅保留 times（分钟精度）字段，丢弃旧版整点 hours 字段。
@@ -116,6 +123,23 @@ function cleanOptionValues(
 ): Record<string, OptionValue> {
   if (!pi?.option) return {};
   return sanitizeOptionValues(optionValues, pi.option, (message) => loggers.config.warn(message));
+}
+
+function restoreOptionValuesFromConfig(
+  optionValues: Record<string, OptionValue>,
+  pi: ProjectInterface | null,
+  projectName?: string,
+): Record<string, OptionValue> {
+  const cleaned = cleanOptionValues(optionValues, pi);
+  return pi?.option ? decryptPasswordOptionValues(cleaned, pi.option, projectName) : cleaned;
+}
+
+function persistOptionValues(
+  optionValues: Record<string, OptionValue>,
+  pi: ProjectInterface | null,
+  projectName?: string,
+): Record<string, OptionValue> {
+  return pi?.option ? encryptPasswordOptionValues(optionValues, pi.option, projectName) : optionValues;
 }
 
 function updateSelectedName(
@@ -331,6 +355,9 @@ export const useAppStore = create<AppState>()(
     // 当前页面
     currentPage: 'main',
     setCurrentPage: (page) => set({ currentPage: page }),
+
+    settingsTargetSection: null,
+    setSettingsTargetSection: (section) => set({ settingsTargetSection: section }),
 
     // 调试选项（不落盘，每次启动默认关闭）
     saveDraw: false,
@@ -899,11 +926,15 @@ export const useAppStore = create<AppState>()(
           const isRandomMarker =
             target.taskName === '__MXU_RANDOM_START__' || target.taskName === '__MXU_RANDOM_END__';
 
-          if (!isRandomMarker) {
-            return {
-              ...i,
-              selectedTasks: i.selectedTasks.map((t) =>
-                t.id === taskId ? { ...t, enabled: !t.enabled } : t,
+            if (!isRandomMarker) {
+              return {
+                ...i,
+                selectedTasks: i.selectedTasks.map((t) =>
+                  t.id === taskId
+                    ? t.runOnce
+                      ? { ...t, enabled: false, runOnce: false }
+                      : { ...t, enabled: !t.enabled, runOnce: false }
+                    : t,
               ),
             };
           }
@@ -940,6 +971,33 @@ export const useAppStore = create<AppState>()(
             ),
           };
         }),
+      })),
+
+    setTaskRunOnce: (instanceId, taskId, runOnce) =>
+      set((state) => ({
+        instances: state.instances.map((i) =>
+          i.id === instanceId
+            ? {
+                ...i,
+                selectedTasks: i.selectedTasks.map((t) =>
+                  t.id === taskId
+                    ? runOnce
+                      ? { ...t, enabled: false, runOnce: true }
+                      : { ...t, runOnce: false }
+                    : t,
+                ),
+              }
+            : i,
+        ),
+      })),
+
+    clearAllTaskRunOnce: (instanceId) =>
+      set((state) => ({
+        instances: state.instances.map((i) =>
+          i.id === instanceId
+            ? { ...i, selectedTasks: i.selectedTasks.map((t) => (t.runOnce ? { ...t, runOnce: false } : t)) }
+            : i,
+        ),
       })),
 
     toggleTaskExpanded: (instanceId, taskId) =>
@@ -1419,10 +1477,11 @@ export const useAppStore = create<AppState>()(
               return {
                 id: t.id,
                 taskName: t.taskName,
+                randomGroupId: t.randomGroupId,
                 customName: t.customName,
                 enabled: t.enabled,
                 enabledByController: t.enabledByController,
-                optionValues: t.optionValues,
+                optionValues: restoreOptionValuesFromConfig(t.optionValues, pi, pi?.name),
                 expanded: prevExpandedByTask.get(t.id) ?? false,
               };
             }
@@ -1465,10 +1524,11 @@ export const useAppStore = create<AppState>()(
             return {
               id: t.id,
               taskName: t.taskName,
+              randomGroupId: t.randomGroupId,
               customName: t.customName,
               enabled: t.enabled,
               enabledByController: t.enabledByController,
-              optionValues: mergedValues,
+              optionValues: restoreOptionValuesFromConfig(mergedValues, pi, pi?.name),
               expanded: prevExpandedByTask.get(t.id) ?? false,
             };
           });
@@ -1913,9 +1973,11 @@ export const useAppStore = create<AppState>()(
     cachedAdbDevices: [],
     cachedWin32Windows: [],
     cachedWlrootsSockets: [],
+    cachedGamescopeInstances: [],
     setCachedAdbDevices: (devices) => set({ cachedAdbDevices: devices }),
     setCachedWin32Windows: (windows) => set({ cachedWin32Windows: windows }),
     setCachedWlrootsSockets: (sockets) => set({ cachedWlrootsSockets: sockets }),
+    setCachedGamescopeInstances: (instances) => set({ cachedGamescopeInstances: instances }),
 
     // 从后端恢复 MAA 运行时状态（后端是单一真相来源）
     // skipRunningState: 运行时 state-changed 事件（connected/resource-loading）调用时
@@ -1995,6 +2057,7 @@ export const useAppStore = create<AppState>()(
           cachedAdbDevices: states.cachedAdbDevices,
           cachedWin32Windows: states.cachedWin32Windows,
           cachedWlrootsSockets: states.cachedWlrootsSockets,
+          cachedGamescopeInstances: states.cachedGamescopeInstances,
         };
       }),
 
@@ -2181,14 +2244,23 @@ export const useAppStore = create<AppState>()(
     downloadStatus: 'idle',
     downloadProgress: null,
     downloadSavePath: null,
-    setDownloadStatus: (status) => set({ downloadStatus: status }),
-    setDownloadProgress: (progress) => set({ downloadProgress: progress }),
+    slowDownloadSince: null,
+    setDownloadStatus: (status) => set({ downloadStatus: status, slowDownloadSince: null }),
+    setDownloadProgress: (progress) =>
+      set((state) => ({
+        downloadProgress: progress,
+        slowDownloadSince:
+          progress && progress.downloadedSize > 0 && progress.speed < SLOW_DOWNLOAD_SPEED_BPS
+            ? (state.slowDownloadSince ?? Date.now())
+            : null,
+      })),
     setDownloadSavePath: (path) => set({ downloadSavePath: path }),
     resetDownloadState: () =>
       set({
         downloadStatus: 'idle',
         downloadProgress: null,
         downloadSavePath: null,
+        slowDownloadSince: null,
       }),
 
     // 安装状态
@@ -2488,6 +2560,13 @@ const _isWebUI = !isTauri();
 // 生成配置用于保存
 function generateConfig(): MxuConfig {
   const state = useAppStore.getState();
+  const pi = state.projectInterface;
+  const projectName = pi?.name;
+  const persistTasks = (tasks: SavedTask[]): SavedTask[] =>
+    tasks.map((t) => ({
+      ...t,
+      optionValues: persistOptionValues(t.optionValues, pi, projectName),
+    }));
   return {
     version: '1.0',
     instances: state.instances.map((inst) => ({
@@ -2498,7 +2577,7 @@ function generateConfig(): MxuConfig {
       controllerName: inst.controllerName,
       resourceName: inst.resourceName,
       savedDevice: inst.savedDevice,
-      tasks: inst.selectedTasks.map((t) => ({
+      tasks: persistTasks(inst.selectedTasks.map((t) => ({
         id: t.id,
         taskName: t.taskName,
         randomGroupId: t.randomGroupId,
@@ -2510,7 +2589,9 @@ function generateConfig(): MxuConfig {
           t.enabled,
         ),
         optionValues: t.optionValues,
-      })),
+        expanded: t.expanded,
+        collapsedOptions: t.collapsedOptions,
+      }))),
       schedulePolicies: inst.schedulePolicies,
       preActions: inst.preActions,
     })),
@@ -2562,8 +2643,8 @@ function generateConfig(): MxuConfig {
         customAccents: ba?.customAccents ?? state.customAccents,
       };
     })(),
-    globalOptionValues: state.globalOptionValues,
-    recentlyClosed: state.recentlyClosed,
+    globalOptionValues: persistOptionValues(state.globalOptionValues, pi, projectName),
+    recentlyClosed: state.recentlyClosed.map((rc) => ({ ...rc, tasks: persistTasks(rc.tasks) })),
     interfaceTaskSnapshot: state.projectInterface?.task.map((t) => t.name) || [],
     newTaskNames: state.newTaskNames,
     lastActiveInstanceId: state.activeInstanceId || undefined,
