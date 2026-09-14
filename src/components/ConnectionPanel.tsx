@@ -276,7 +276,7 @@ export function ConnectionPanel() {
 
     // 从缓存的设备列表中恢复选中的设备
     const savedDevice = activeInstance?.savedDevice;
-    if (savedDevice?.adbDeviceName && cachedAdbDevices.length > 0) {
+    if ((savedDevice?.adbDeviceName || savedDevice?.adbDeviceAddress) && cachedAdbDevices.length > 0) {
       // 从缓存中找到匹配的 ADB 设备
       const matchedDevice = findMatchingAdbDevice(cachedAdbDevices, savedDevice);
       setSelectedAdbDevice(matchedDevice || null);
@@ -392,7 +392,7 @@ export function ConnectionPanel() {
     const savedDevice = activeInstance.savedDevice;
     const hasHistoricalDevice =
       savedDevice &&
-      ((controllerType === 'Adb' && savedDevice.adbDeviceName) ||
+      ((controllerType === 'Adb' && (savedDevice.adbDeviceName || savedDevice.adbDeviceAddress)) ||
         (isDesktopWindowController && savedDevice.windowName) ||
         (controllerType === 'WlRoots' && savedDevice.wlrSocketPath) ||
         (controllerType === 'Linux' &&
@@ -449,7 +449,7 @@ export function ConnectionPanel() {
         // 2. 如果没有保存的设备信息（首次使用）且扫描到设备 → 自动连接第一个
         // 3. 如果有保存的设备但匹配不到 → 显示下拉框让用户选择
         let autoSelected: AdbDevice | null = null;
-        if (savedDevice?.adbDeviceName) {
+        if (savedDevice?.adbDeviceName || savedDevice?.adbDeviceAddress) {
           autoSelected = findMatchingAdbDevice(devices, savedDevice, true) || null;
         } else if (devices.length > 0) {
           // 没有保存设备时自动选择第一个
@@ -842,8 +842,8 @@ export function ConnectionPanel() {
         return `${selectedAdbDevice.name} (${selectedAdbDevice.address})`;
       }
       // 缓存为空但有历史设备名称
-      if (savedDevice?.adbDeviceName) {
-        return savedDevice.adbDeviceName;
+      if (savedDevice?.adbDeviceName || savedDevice?.adbDeviceAddress) {
+        return savedDevice.adbDeviceName || savedDevice.adbDeviceAddress || '';
       }
       return t('controller.selectDevice');
     }
@@ -1182,7 +1182,7 @@ export function ConnectionPanel() {
         setCachedAdbDevices(devices);
 
         // 尝试匹配保存的设备信息
-        if (savedDevice?.adbDeviceName) {
+        if (savedDevice?.adbDeviceName || savedDevice?.adbDeviceAddress) {
           const matched = findMatchingAdbDevice(devices, savedDevice);
           if (matched) {
             // 找到匹配的，自动连接
@@ -1274,11 +1274,11 @@ export function ConnectionPanel() {
       }
 
       // 缓存为空但有历史设备名称，显示历史设备条目
-      if (savedDevice?.adbDeviceName) {
+      if (savedDevice?.adbDeviceName || savedDevice?.adbDeviceAddress) {
         return [
           {
             id: 'historical-device',
-            name: savedDevice.adbDeviceName,
+            name: savedDevice.adbDeviceName || savedDevice.adbDeviceAddress || '',
             description: t('controller.lastSelected'),
             selected: true,
             onClick: handleSearchAndConnectHistorical,
@@ -1421,8 +1421,8 @@ export function ConnectionPanel() {
     // 获取设备显示文本（优先显示具体设备名）
     const getDeviceStatusText = () => {
       const savedDevice = activeInstance?.savedDevice;
-      if (savedDevice?.adbDeviceName) {
-        return truncateText(savedDevice.adbDeviceName, 6);
+      if (savedDevice?.adbDeviceName || savedDevice?.adbDeviceAddress) {
+        return truncateText(savedDevice.adbDeviceName || savedDevice.adbDeviceAddress || '', 6);
       }
       if (savedDevice?.windowName) {
         return truncateText(savedDevice.windowName, 6);

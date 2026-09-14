@@ -11,7 +11,12 @@ import {
   resolveThemeMode,
   unregisterCustomAccent,
 } from '@/themes';
-import type { LegacyActionConfig, MxuConfig, RecentlyClosedInstance, SavedTask } from '@/types/config';
+import type {
+  LegacyActionConfig,
+  MxuConfig,
+  RecentlyClosedInstance,
+  SavedTask,
+} from '@/types/config';
 import {
   clampAddTaskPanelHeight,
   DEFAULT_MAX_LOGS_PER_INSTANCE,
@@ -139,7 +144,9 @@ function persistOptionValues(
   pi: ProjectInterface | null,
   projectName?: string,
 ): Record<string, OptionValue> {
-  return pi?.option ? encryptPasswordOptionValues(optionValues, pi.option, projectName) : optionValues;
+  return pi?.option
+    ? encryptPasswordOptionValues(optionValues, pi.option, projectName)
+    : optionValues;
 }
 
 function updateSelectedName(
@@ -500,14 +507,18 @@ export const useAppStore = create<AppState>()(
             tasks: instanceToClose.selectedTasks.map((t) => ({
               id: t.id,
               taskName: t.taskName,
+              randomGroupId: t.randomGroupId,
               customName: t.customName,
               enabled: t.enabled,
+              runOnce: t.runOnce,
               enabledByController: cacheTaskEnabledForController(
                 t.enabledByController,
                 instanceToClose.controllerName,
                 t.enabled,
               ),
               optionValues: t.optionValues,
+              expanded: t.expanded,
+              collapsedOptions: t.collapsedOptions,
             })),
             schedulePolicies: instanceToClose.schedulePolicies,
             preActions: instanceToClose.preActions,
@@ -926,15 +937,15 @@ export const useAppStore = create<AppState>()(
           const isRandomMarker =
             target.taskName === '__MXU_RANDOM_START__' || target.taskName === '__MXU_RANDOM_END__';
 
-            if (!isRandomMarker) {
-              return {
-                ...i,
-                selectedTasks: i.selectedTasks.map((t) =>
-                  t.id === taskId
-                    ? t.runOnce
-                      ? { ...t, enabled: false, runOnce: false }
-                      : { ...t, enabled: !t.enabled, runOnce: false }
-                    : t,
+          if (!isRandomMarker) {
+            return {
+              ...i,
+              selectedTasks: i.selectedTasks.map((t) =>
+                t.id === taskId
+                  ? t.runOnce
+                    ? { ...t, enabled: false, runOnce: false }
+                    : { ...t, enabled: !t.enabled, runOnce: false }
+                  : t,
               ),
             };
           }
@@ -995,7 +1006,12 @@ export const useAppStore = create<AppState>()(
       set((state) => ({
         instances: state.instances.map((i) =>
           i.id === instanceId
-            ? { ...i, selectedTasks: i.selectedTasks.map((t) => (t.runOnce ? { ...t, runOnce: false } : t)) }
+            ? {
+                ...i,
+                selectedTasks: i.selectedTasks.map((t) =>
+                  t.runOnce ? { ...t, runOnce: false } : t,
+                ),
+              }
             : i,
         ),
       })),
@@ -1143,13 +1159,14 @@ export const useAppStore = create<AppState>()(
             return {
               ...i,
               selectedTasks: i.selectedTasks.map((t) => {
-                if (!enabled) return { ...t, enabled: false };
+                // 全选/取消全选也要清除单次运行标记，避免界面显示已取消但任务仍会被启动。
+                if (!enabled) return { ...t, enabled: false, runOnce: false };
                 // 全选时不兼容的任务显式禁用
                 const taskDef = resolveCompatTaskDef(state.projectInterface, t.taskName);
                 if (!isTaskCompatible(taskDef, controllerName, resourceName)) {
-                  return { ...t, enabled: false };
+                  return { ...t, enabled: false, runOnce: false };
                 }
-                return { ...t, enabled: true };
+                return { ...t, enabled: true, runOnce: false };
               }),
             };
           }),
@@ -1211,6 +1228,8 @@ export const useAppStore = create<AppState>()(
         ...originalTask,
         id: generateId(),
         customName: newCustomName,
+        // “单次运行”是一次性选择，不应因为复制任务而额外触发一次运行。
+        runOnce: false,
         enabledByController: originalTask.enabledByController
           ? { ...originalTask.enabledByController }
           : undefined,
@@ -1427,10 +1446,12 @@ export const useAppStore = create<AppState>()(
       // 这样当其他客户端修改配置触发 importConfig 时，不会意外重置运行状态或折叠任务
       const prevRunningByInstance = new Map<string, boolean>();
       const prevExpandedByTask = new Map<string, boolean>();
+      const prevCollapsedByTask = new Map<string, Record<string, boolean> | undefined>();
       for (const inst of get().instances) {
         prevRunningByInstance.set(inst.id, inst.isRunning);
         for (const t of inst.selectedTasks) {
           prevExpandedByTask.set(t.id, t.expanded);
+          prevCollapsedByTask.set(t.id, t.collapsedOptions);
         }
       }
 
@@ -1480,16 +1501,18 @@ export const useAppStore = create<AppState>()(
                 randomGroupId: t.randomGroupId,
                 customName: t.customName,
                 enabled: t.enabled,
+                runOnce: t.runOnce,
                 enabledByController: t.enabledByController,
                 optionValues: restoreOptionValuesFromConfig(t.optionValues, pi, pi?.name),
-                expanded: prevExpandedByTask.get(t.id) ?? false,
+                expanded: prevExpandedByTask.get(t.id) ?? t.expanded ?? false,
+                collapsedOptions: prevCollapsedByTask.get(t.id) ?? t.collapsedOptions,
               };
             }
 
             // pretask 伪任务的 option 引用顶层 pi.option
             if (isPretaskName(t.taskName)) {
               const pretaskItem = getPretaskItem(pi, t.taskName);
-              const cleanedValues = cleanOptionValues(t.optionValues, pi);
+              const cleanedValues = restoreOptionValuesFromConfig(t.optionValues, pi, pi?.name);
               const defaultValues =
                 pretaskItem?.option && pi?.option
                   ? initializeAllOptionValues(pretaskItem.option, pi.option)
@@ -1503,14 +1526,16 @@ export const useAppStore = create<AppState>()(
                 taskName: t.taskName,
                 customName: t.customName,
                 enabled: t.enabled,
+                runOnce: t.runOnce,
                 enabledByController: t.enabledByController,
-                optionValues: mergedValues,
-                expanded: prevExpandedByTask.get(t.id) ?? false,
+                optionValues: restoreOptionValuesFromConfig(mergedValues, pi, pi?.name),
+                expanded: prevExpandedByTask.get(t.id) ?? t.expanded ?? false,
+                collapsedOptions: prevCollapsedByTask.get(t.id) ?? t.collapsedOptions,
               };
             }
 
             const taskDef = pi?.task.find((td) => td.name === t.taskName);
-            const cleanedValues = cleanOptionValues(t.optionValues, pi);
+            const cleanedValues = restoreOptionValuesFromConfig(t.optionValues, pi, pi?.name);
             // 为缺失的 option 添加默认值（根据 default_case）
             const defaultValues =
               taskDef?.option && pi?.option
@@ -1527,9 +1552,11 @@ export const useAppStore = create<AppState>()(
               randomGroupId: t.randomGroupId,
               customName: t.customName,
               enabled: t.enabled,
+              runOnce: t.runOnce,
               enabledByController: t.enabledByController,
               optionValues: restoreOptionValuesFromConfig(mergedValues, pi, pi?.name),
-              expanded: prevExpandedByTask.get(t.id) ?? false,
+              expanded: prevExpandedByTask.get(t.id) ?? t.expanded ?? false,
+              collapsedOptions: prevCollapsedByTask.get(t.id) ?? t.collapsedOptions,
             };
           });
 
@@ -1692,7 +1719,13 @@ export const useAppStore = create<AppState>()(
           stopTasks: 'F11',
           globalEnabled: false,
         },
-        recentlyClosed: config.recentlyClosed || [],
+        recentlyClosed: (config.recentlyClosed || []).map((rc) => ({
+          ...rc,
+          tasks: rc.tasks.map((t) => ({
+            ...t,
+            optionValues: restoreOptionValuesFromConfig(t.optionValues, pi, pi?.name),
+          })),
+        })),
         // 记录新增任务，并在有新增时自动展开添加任务面板
         newTaskNames: detectedNewTaskNames,
         showAddTaskPanel: detectedNewTaskNames.length > 0,
@@ -1702,12 +1735,12 @@ export const useAppStore = create<AppState>()(
         globalOptionValues: (() => {
           const globalKeys = pi?.global_option;
           if (!globalKeys || globalKeys.length === 0 || !pi?.option) {
-            return cleanOptionValues(config.globalOptionValues || {}, pi);
+            return restoreOptionValuesFromConfig(config.globalOptionValues || {}, pi, pi?.name);
           }
           const defaults = initializeAllOptionValues(globalKeys, pi.option);
           return {
             ...defaults,
-            ...cleanOptionValues(config.globalOptionValues || {}, pi),
+            ...restoreOptionValuesFromConfig(config.globalOptionValues || {}, pi, pi?.name),
           };
         })(),
       });
@@ -2311,9 +2344,11 @@ export const useAppStore = create<AppState>()(
           randomGroupId: t.randomGroupId,
           customName: t.customName,
           enabled: t.enabled,
+          runOnce: t.runOnce,
           enabledByController: t.enabledByController ? { ...t.enabledByController } : undefined,
-          optionValues: cleanOptionValues(t.optionValues, pi),
-          expanded: false,
+          optionValues: restoreOptionValuesFromConfig(t.optionValues, pi, pi?.name),
+          expanded: t.expanded ?? false,
+          collapsedOptions: t.collapsedOptions ? { ...t.collapsedOptions } : undefined,
         })),
         isRunning: false,
         schedulePolicies: normalizeSchedulePolicies(closedInstance),
@@ -2577,21 +2612,24 @@ function generateConfig(): MxuConfig {
       controllerName: inst.controllerName,
       resourceName: inst.resourceName,
       savedDevice: inst.savedDevice,
-      tasks: persistTasks(inst.selectedTasks.map((t) => ({
-        id: t.id,
-        taskName: t.taskName,
-        randomGroupId: t.randomGroupId,
-        customName: t.customName,
-        enabled: t.enabled,
-        enabledByController: cacheTaskEnabledForController(
-          t.enabledByController,
-          inst.controllerName,
-          t.enabled,
-        ),
-        optionValues: t.optionValues,
-        expanded: t.expanded,
-        collapsedOptions: t.collapsedOptions,
-      }))),
+      tasks: persistTasks(
+        inst.selectedTasks.map((t) => ({
+          id: t.id,
+          taskName: t.taskName,
+          randomGroupId: t.randomGroupId,
+          customName: t.customName,
+          enabled: t.enabled,
+          runOnce: t.runOnce,
+          enabledByController: cacheTaskEnabledForController(
+            t.enabledByController,
+            inst.controllerName,
+            t.enabled,
+          ),
+          optionValues: t.optionValues,
+          expanded: t.expanded,
+          collapsedOptions: t.collapsedOptions,
+        })),
+      ),
       schedulePolicies: inst.schedulePolicies,
       preActions: inst.preActions,
     })),

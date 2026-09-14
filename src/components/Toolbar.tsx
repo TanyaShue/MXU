@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
 import {
   CheckSquare,
   Square,
@@ -29,7 +30,12 @@ import {
   buildPretaskArgs,
   resolveCompatTaskDef,
 } from '@/types/pretasks';
-import { splitTasksIntoThreeSegments, shouldSkipScreenshot } from '@/utils/taskSegmentation';
+import {
+  splitTasksIntoThreeSegments,
+  shouldSkipScreenshot,
+  resolveRandomTaskOrder,
+  RandomTaskRangeError,
+} from '@/utils/taskSegmentation';
 import type { TaskConfig, ControllerConfig, GamescopeInstance } from '@/types/maa';
 import { normalizeAgentConfigs } from '@/types/interface';
 import {
@@ -431,9 +437,11 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
       const hasSavedDevice = Boolean(
         savedDevice &&
         (savedDevice.adbDeviceName ||
+          savedDevice.adbDeviceAddress ||
           savedDevice.windowName ||
           savedDevice.wlrSocketPath ||
-          savedDevice.playcoverAddress),
+          savedDevice.playcoverAddress ||
+          savedDevice.gamescopeDisplayNo !== undefined),
       );
       const hasVisualTasks = compatibleTasks.some((task) => !shouldSkipScreenshot(task.taskName));
       const shouldUseDummyController = !hasVisualTasks;
@@ -626,7 +634,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
                 try {
                   if (controllerType === 'Adb') {
                     const devices = await maaService.findAdbDevices();
-                    if (savedDevice?.adbDeviceName) {
+                    if (savedDevice?.adbDeviceName || savedDevice?.adbDeviceAddress) {
                       deviceFound = !!findMatchingAdbDevice(devices, savedDevice);
                     } else {
                       deviceFound = devices.length > 0;
@@ -671,8 +679,10 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
                 if (
                   !savedDevice?.windowName &&
                   !savedDevice?.adbDeviceName &&
+                  !savedDevice?.adbDeviceAddress &&
                   !savedDevice?.wlrSocketPath &&
-                  !savedDevice?.playcoverAddress
+                  !savedDevice?.playcoverAddress &&
+                  savedDevice?.gamescopeDisplayNo === undefined
                 ) {
                   try {
                     if (controllerType === 'Adb') {
@@ -785,7 +795,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
             log.info(`实例 ${targetInstance.name}: 自动连接已保存的设备...`);
             onPhaseChange?.('searching');
 
-            if (controllerType === 'Adb' && savedDevice.adbDeviceName) {
+            if (controllerType === 'Adb' && (savedDevice.adbDeviceName || savedDevice.adbDeviceAddress)) {
               const devices = await maaService.findAdbDevices();
               const matchedDevice = findMatchingAdbDevice(devices, savedDevice);
               if (!matchedDevice) {
@@ -962,7 +972,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
 
           onPhaseChange?.('connecting');
 
-          const maxRetries = 3;
+          const maxRetries = 10;
           let connectResult = false;
 
           for (let retry = 0; retry < maxRetries && !connectResult; retry++) {
@@ -1165,8 +1175,22 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
           taskDef: NonNullable<ReturnType<typeof getMxuSpecialTask>>['taskDef'] | TaskItem;
           specialTask: ReturnType<typeof getMxuSpecialTask>;
         }
+        let orderedTasks: typeof compatibleTasks;
+        try {
+          orderedTasks = resolveRandomTaskOrder(
+            compatibleTasks.filter((task) => !isPretaskName(task.taskName)),
+          );
+        } catch (err) {
+          if (err instanceof RandomTaskRangeError) {
+            log.error(`实例 ${targetInstance.name}: 随机任务区间无效: ${err.message}`);
+            toast.error(t('specialTask.random.invalidRange'));
+            return false;
+          }
+          throw err;
+        }
+
         const runnableTasks: RunnableTask[] = [];
-        for (const selectedTask of compatibleTasks) {
+        for (const selectedTask of orderedTasks) {
           // pretask 不进入 Tasker 队列，已在连接 Controller 前单独执行
           if (isPretaskName(selectedTask.taskName)) {
             continue;

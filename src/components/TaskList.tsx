@@ -157,7 +157,8 @@ function useImportConfigActions(instanceId: string) {
               ...defaultValues,
               ...cleanedValues,
             },
-            expanded: true,
+            // 导出协议带有任务卡片展开状态；旧格式没有该字段时保持原有的默认展开行为。
+            expanded: task.expanded ?? true,
           };
         })
         .filter((task): task is SavedTask & { expanded: boolean } => task !== null);

@@ -7,6 +7,7 @@ import type { ControllerItem } from '@/types/interface';
 import {
   buildDesktopWindowControllerConfig,
   getDesktopWindowFilters,
+  findMatchingAdbDevice,
   isDesktopWindowControllerType,
 } from '@/utils/controller';
 import { startGlobalCallbackListener, waitForCtrlResult } from './callbackCache';
@@ -114,11 +115,8 @@ export function useDeviceConnection({
         setCachedAdbDevices(devices);
 
         let autoSelected: AdbDevice | null = null;
-        if (savedDevice?.adbDeviceName) {
-          const matched = devices.filter((d) => d.name === savedDevice.adbDeviceName);
-          if (matched.length === 1) {
-            autoSelected = matched[0];
-          }
+        if (savedDevice?.adbDeviceName || savedDevice?.adbDeviceAddress) {
+          autoSelected = findMatchingAdbDevice(devices, savedDevice, true) || null;
         } else if (devices.length > 0) {
           autoSelected = devices[0];
         }
@@ -390,8 +388,8 @@ export function useDeviceConnection({
       if (selectedAdbDevice) {
         return `${selectedAdbDevice.name} (${selectedAdbDevice.address})`;
       }
-      if (savedDevice?.adbDeviceName) {
-        return savedDevice.adbDeviceName;
+      if (savedDevice?.adbDeviceName || savedDevice?.adbDeviceAddress) {
+        return savedDevice.adbDeviceName || savedDevice.adbDeviceAddress || '';
       }
       return t('controller.selectDevice');
     }

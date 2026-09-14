@@ -31,6 +31,8 @@ export interface SavedTask {
   randomGroupId?: string;
   customName?: string; // 用户自定义名称
   enabled: boolean;
+  /** 单次运行：下次启动时包含该任务，运行结束后自动清除 */
+  runOnce?: boolean;
   /** 各控制器独立的勾选状态（旧配置中不存在时按 enabled 初始化） */
   enabledByController?: Record<string, boolean>;
   optionValues: Record<string, OptionValue>;

@@ -37,7 +37,11 @@ interface WireTask {
   tn: string; // taskName
   cn?: string; // customName
   e: boolean; // enabled
+  ro?: boolean; // runOnce
+  rg?: string; // randomGroupId
   ec?: Record<string, boolean>; // enabledByController
+  ex?: boolean; // expanded
+  co?: Record<string, boolean>; // collapsedOptions
   ov: Record<string, WireOptionValue>; // optionValues
 }
 
@@ -93,7 +97,11 @@ function encodeTask(task: SavedTask): WireTask {
     ),
   };
   if (task.customName !== undefined) wire.cn = task.customName;
+  if (task.runOnce !== undefined) wire.ro = task.runOnce;
+  if (task.randomGroupId !== undefined) wire.rg = task.randomGroupId;
   if (task.enabledByController !== undefined) wire.ec = task.enabledByController;
+  if (task.expanded !== undefined) wire.ex = task.expanded;
+  if (task.collapsedOptions !== undefined) wire.co = task.collapsedOptions;
   return wire;
 }
 
@@ -150,7 +158,11 @@ function decodeTask(w: WireTask): SavedTask {
     taskName: w.tn,
     customName: w.cn,
     enabled: w.e,
+    runOnce: w.ro,
+    randomGroupId: w.rg,
     enabledByController: w.ec,
+    expanded: w.ex,
+    collapsedOptions: w.co,
     optionValues: Object.fromEntries(
       Object.entries(w.ov).map(([k, v]) => [k, decodeOptionValue(v)]),
     ),
@@ -269,8 +281,10 @@ export async function buildTabConfigExportText(
     selectedTasks: instance.selectedTasks.map((t) => ({
       id: t.id,
       taskName: t.taskName,
+      randomGroupId: t.randomGroupId,
       customName: t.customName,
       enabled: t.enabled,
+      runOnce: t.runOnce,
       enabledByController: cacheTaskEnabledForController(
         t.enabledByController,
         instance.controllerName,
@@ -279,6 +293,8 @@ export async function buildTabConfigExportText(
       optionValues: allOptions
         ? encryptPasswordOptionValues(t.optionValues, allOptions, projectName)
         : t.optionValues,
+      expanded: t.expanded,
+      collapsedOptions: t.collapsedOptions,
     })),
     preActions: instance.preActions,
   };

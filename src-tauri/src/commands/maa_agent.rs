@@ -792,6 +792,14 @@ pub async fn start_tasks_impl(
     // 提交完成，释放遥测状态锁（后续有 await，不能继续持有）
     drop(telemetry_posting);
 
+    // 阴阳师悬赏识别：主任务批次真正提交成功后启动一次独立监控。
+    // 监控内部按实例和 generation 去重，追加批次不会重复创建。
+    super::assist_monitor::start_for_instance(
+        app.clone(),
+        Arc::clone(maa_state),
+        instance_id.clone(),
+    );
+
     // 通知所有客户端：任务已启动，需刷新运行时状态
     super::utils::emit_state_changed(&app, &instance_id, "task-started");
 

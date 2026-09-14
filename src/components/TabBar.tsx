@@ -214,10 +214,17 @@ export function TabBar() {
               icon: Copy,
               onClick: () => {
                 if (inst && projectName) {
-                  exportWithToast(inst, projectName, exportHint, exportFooter, {
-                    success: t('preset.exportSuccess'),
-                    failed: t('preset.exportFailed'),
-                  });
+                  exportWithToast(
+                    inst,
+                    projectName,
+                    exportHint,
+                    exportFooter,
+                    {
+                      success: t('preset.exportSuccess'),
+                      failed: t('preset.exportFailed'),
+                    },
+                    useAppStore.getState().projectInterface?.option,
+                  );
                 }
               },
             },
@@ -227,10 +234,17 @@ export function TabBar() {
               icon: FileText,
               onClick: () => {
                 if (inst && projectName) {
-                  exportFileWithToast(inst, projectName, exportHint, exportFooter, {
-                    success: t('preset.exportFileSuccess'),
-                    failed: t('preset.exportFileFailed'),
-                  });
+                  exportFileWithToast(
+                    inst,
+                    projectName,
+                    exportHint,
+                    exportFooter,
+                    {
+                      success: t('preset.exportFileSuccess'),
+                      failed: t('preset.exportFileFailed'),
+                    },
+                    useAppStore.getState().projectInterface?.option,
+                  );
                 }
               },
             },

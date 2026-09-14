@@ -170,6 +170,7 @@ export function AddTaskPanel() {
     getActiveInstance,
     addTaskToInstance,
     addMxuSpecialTask,
+    addRandomTaskRange,
     resolveI18nText,
     language,
     basePath,
@@ -274,6 +275,13 @@ export function AddTaskPanel() {
 
     // 收起添加任务面板
     setShowAddTaskPanel(false);
+
+    // 随机任务是一个结构化区间，原子追加开始/结束两个标记。
+    if (specialTask.addPairTaskName) {
+      if (instance.isRunning) return;
+      addRandomTaskRange(instance.id);
+      return;
+    }
 
     // 根据 connectedProgramPath 为特定任务提供默认值
     const connectedPath = instance.savedDevice?.connectedProgramPath;
@@ -841,12 +849,19 @@ export function AddTaskPanel() {
                         <button
                           key={specialTask.taskName}
                           onClick={() => handleAddSpecialTask(specialTask)}
+                          disabled={instance.isRunning && !!specialTask.addPairTaskName}
                           className={clsx(
                             'flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs transition-colors',
                             'bg-bg-secondary/70 hover:bg-bg-hover text-text-secondary border border-border/70 hover:border-accent',
                           )}
                         >
-                          <span>{t(specialTask.taskDef.label || specialTask.taskName)}</span>
+                          <span>
+                            {t(
+                              specialTask.addLabel ||
+                                specialTask.taskDef.label ||
+                                specialTask.taskName,
+                            )}
+                          </span>
                         </button>
                       );
                     })}

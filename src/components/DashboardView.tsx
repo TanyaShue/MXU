@@ -52,6 +52,7 @@ import {
   formatCheckboxCountViolation,
   validateInstanceCheckboxCounts,
 } from '@/utils/checkboxOptionValidation';
+import { isTaskSelectedForRun } from '@/utils/taskRunFilter';
 
 const log = loggers.ui;
 
@@ -123,7 +124,7 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
   const instance = instances.find((i) => i.id === instanceId);
   const isRunning = instance?.isRunning || false;
   const tasks = instance?.selectedTasks || [];
-  const enabledTasks = tasks.filter((t) => t.enabled);
+  const enabledTasks = tasks.filter(isTaskSelectedForRun);
   const canRun = isConnected && isResourceLoaded && enabledTasks.length > 0;
 
   // 获取当前控制器和资源名（用于 pipeline override 生成）
@@ -143,8 +144,8 @@ function InstanceCard({ instanceId, instanceName, isActive, onSelect }: Instance
     // 获取设备名称
     const savedDevice = instance?.savedDevice;
     let deviceName = '';
-    if (savedDevice?.adbDeviceName) {
-      deviceName = savedDevice.adbDeviceName;
+    if (savedDevice?.adbDeviceName || savedDevice?.adbDeviceAddress) {
+      deviceName = savedDevice.adbDeviceName || savedDevice.adbDeviceAddress || '';
     } else if (savedDevice?.windowName) {
       deviceName = savedDevice.windowName;
     } else if (currentController?.type === 'Linux' && savedDevice) {

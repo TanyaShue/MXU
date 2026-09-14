@@ -349,6 +349,29 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
   const instance = instances.find((i) => i.id === instanceId);
   const isInstanceRunning = instance?.isRunning || false;
 
+  // 随机任务区间的视觉分组：同一组标记共享 randomGroupId，兼容旧配置按顺序推断。
+  const randomGroup = useMemo(() => {
+    const tasks = instance?.selectedTasks ?? [];
+    let groupIndex = -1;
+    let open = false;
+    let enabled = false;
+    for (const item of tasks) {
+      if (item.taskName === '__MXU_RANDOM_START__') {
+        groupIndex += 1;
+        open = true;
+        enabled = item.enabled;
+      }
+      if (item.id === task.id) {
+        return { index: open ? groupIndex : -1, inside: open, enabled };
+      }
+      if (item.taskName === '__MXU_RANDOM_END__') {
+        open = false;
+        enabled = false;
+      }
+    }
+    return { index: -1, inside: false, enabled: false };
+  }, [instance?.selectedTasks, task.id]);
+
   // 获取任务定义 - 支持 MXU 内置特殊任务与 pretask 前置任务
   const isMxuTask = isMxuSpecialTask(task.taskName);
   const isPretask = isPretaskName(task.taskName);
@@ -543,7 +566,11 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
       ? t(taskDef.label || taskDef.name)
       : resolveI18nText(taskDef.label, langKey) || taskDef.name
     : '';
-  const displayName = task.customName || originalLabel;
+  const baseDisplayName = task.customName || originalLabel;
+  const displayName =
+    isExecutionMarker && randomGroup.index > 0
+      ? `${baseDisplayName}-${randomGroup.index + 1}`
+      : baseDisplayName;
   const hasOptions = !!taskDef?.option && taskDef.option.length > 0;
   // 判断是否有描述内容（包括正在加载的情况）
   const hasDescription = !!resolvedDescription.html || resolvedDescription.loading;
@@ -871,6 +898,16 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
       onContextMenu={handleContextMenu}
       className={clsx(
         'group bg-bg-secondary rounded-lg border border-border transition-shadow relative',
+        'transition-[margin,box-shadow,border-color] duration-200 ease-out',
+        randomGroup.inside && randomGroup.enabled && !isExecutionMarker && 'ml-4',
+        randomGroup.inside &&
+          randomGroup.enabled &&
+          isExecutionMarker &&
+          'bg-accent/[0.04] border-accent/35',
+        randomGroup.inside &&
+          randomGroup.enabled &&
+          !isExecutionMarker &&
+          'border-l-2 border-l-accent/30 bg-bg-secondary/80',
         isDragging && 'shadow-lg opacity-50',
         taskRunStatus === 'running' && 'task-item-running',
         isAnimating && 'animate-task-slide-in',
@@ -916,7 +953,7 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
                 ? t('specialTask.random.description')
                 : checkboxState === 'once'
                   ? t('taskItem.runOnceHint')
-                : undefined
+                  : undefined
           }
         >
           <TriStateCheckbox
@@ -964,6 +1001,11 @@ export function TaskItem({ instanceId, task }: TaskItemProps) {
                 >
                   {displayName}
                 </span>
+                {mxuSpecialTask?.executionMarker === 'random-start' && (
+                  <span className="text-[11px] text-accent/80 truncate">
+                    {t('specialTask.random.description')}
+                  </span>
+                )}
                 {task.customName && (
                   <span className="min-w-0 truncate text-xs text-text-muted">
                     ({originalLabel})
