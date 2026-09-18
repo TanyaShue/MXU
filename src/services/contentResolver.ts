@@ -9,11 +9,12 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import { loggers } from '@/utils/logger';
-import { marked } from 'marked';
+import { marked, Marked, type RendererObject } from 'marked';
 import DOMPurify from 'dompurify';
 import { cachedFetch } from './cacheService';
 import { isTauri, joinPath } from '@/utils/paths';
 import { getApiBase } from '@/utils/backendApi';
+import { hasInlineRichText } from '@/utils/richText';
 
 const log = loggers.app;
 
@@ -349,6 +350,48 @@ export function resolveIconPath(
 }
 
 /**
+ * 行内 Markdown 渲染：把 label 里的 Markdown 转成 HTML，并把本地图片转成 data URL。
+ *
+ * 与 description 的区别：
+ * 1. 使用 {@link inlineMarked}，段落不包 `<p>`，方便放进 label 的 `<span>`；
+ * 2. 图片按行内小图标处理（16px、垂直居中、无上下外边距），
+ *    与 option case 的 `icon` 字段（`w-4 h-4`）视觉一致；
+ * 3. 相对路径图片读取失败时直接移除 `<img>`，label 空间很小，不留破图占位。
+ */
+export async function inlineMarkdownToHtmlWithLocalImages(
+  markdown: string,
+  basePath: string = '',
+): Promise<string> {
+  return resolveLocalImages(markdownToHtml(markdown, inlineMarked), basePath, {
+    dropFailedImages: true,
+  });
+}
+
+/**
+ * 图标 data URL 缓存（会话内）。
+ *
+ * 同一个图标会出现在多个 label / 任务项 / 下拉项里，缓存后同一路径只读一次文件；
+ * 资源目录被换掉（同一路径下文件内容变化）时调用 {@link clearIconDataUrlCache} 失效。
+ */
+const iconDataUrlCache = new Map<string, string>();
+
+/** 同一路径的并发读取去重，避免首屏同时发起 N 次 IPC */
+const iconLoadInFlight = new Map<string, Promise<string | undefined>>();
+
+/**
+ * 缓存代数，每次 {@link clearIconDataUrlCache} 自增。
+ * 用于丢弃「清空之前发起、清空之后才完成」的读取结果，避免切换资源后写回旧图标。
+ */
+let iconCacheGeneration = 0;
+
+/** 清空图标 data URL 缓存（加载 / 切换资源目录时调用） */
+export function clearIconDataUrlCache(): void {
+  iconCacheGeneration += 1;
+  iconDataUrlCache.clear();
+  iconLoadInFlight.clear();
+}
+
+/**
  * 加载图标为 data URL（异步版本）
  * 在 Tauri 环境下读取本地文件并转换为 base64 data URL
  *
@@ -375,20 +418,47 @@ export async function loadIconAsDataUrl(
   resolved = normalizeFilePath(resolved);
   const fullPath = joinPath(basePath, resolved);
 
-  try {
-    if (isTauri()) {
-      // Tauri 环境：读取文件并转换为 base64 data URL
-      const base64 = await readLocalFileBase64(fullPath);
-      const ext = resolved.split('.').pop()?.toLowerCase() || 'png';
-      const mimeType = getMimeType(ext);
-      return `data:${mimeType};base64,${base64}`;
-    } else {
-      // 浏览器环境：通过后端本地文件代理 API 访问
-      return `${getApiBase()}/local-file?path=${encodeURIComponent(fullPath)}`;
+  const cached = iconDataUrlCache.get(fullPath);
+  if (cached) return cached;
+
+  const inFlight = iconLoadInFlight.get(fullPath);
+  if (inFlight) return inFlight;
+
+  const generation = iconCacheGeneration;
+  const task = (async (): Promise<string | undefined> => {
+    try {
+      if (isTauri()) {
+        // Tauri 环境：读取文件并转换为 base64 data URL
+        const base64 = await readLocalFileBase64(fullPath);
+        const ext = resolved.split('.').pop()?.toLowerCase() || 'png';
+        const mimeType = getMimeType(ext);
+        return `data:${mimeType};base64,${base64}`;
+      } else {
+        // 浏览器环境：通过后端本地文件代理 API 访问。
+        // 先探测代理确实能提供该文件：否则调用方会把一个必然 404 的 URL 当成加载成功，
+        // 缺失的图标就会留下破图（Tauri 环境是真读文件，天然具备这个校验）。
+        const url = `${getApiBase()}/local-file?path=${encodeURIComponent(fullPath)}`;
+        const response = await fetch(url);
+        if (!response.ok) return undefined;
+        return url;
+      }
+    } catch (err) {
+      log.warn(`加载图标失败 [${fullPath}]:`, err);
+      return undefined;
     }
-  } catch (err) {
-    log.warn(`加载图标失败 [${fullPath}]:`, err);
-    return undefined;
+  })();
+
+  iconLoadInFlight.set(fullPath, task);
+
+  try {
+    const result = await task;
+    // 只缓存成功结果：文件缺失等情况下次仍会重试；
+    // 且只缓存本代数的结果，避免清空缓存后写回旧资源目录的图标
+    if (result && generation === iconCacheGeneration) iconDataUrlCache.set(fullPath, result);
+    return result;
+  } finally {
+    // 只清理自己那一项：清空缓存后新发起的同路径请求不能被旧请求删掉
+    if (iconLoadInFlight.get(fullPath) === task) iconLoadInFlight.delete(fullPath);
   }
 }
 
@@ -409,175 +479,230 @@ function getMimeType(ext: string): string {
   return mimeTypes[ext] || 'application/octet-stream';
 }
 
-// 配置 marked，使用 use() API 添加 Tailwind 样式
-marked.use({
+/**
+ * 全局 Markdown 渲染样式（description、focus 日志等共用），使用 Tailwind class。
+ *
+ * 行内 label 复用同一份样式，只覆盖 paragraph / image（见 {@link inlineMarked}）。
+ */
+const tailwindRenderer: RendererObject = {
+  heading({ tokens, depth }) {
+    const text = this.parser.parseInline(tokens);
+    const styles: Record<number, string> = {
+      1: 'text-xl font-bold mt-4 mb-2',
+      2: 'text-lg font-semibold mt-4 mb-2',
+      3: 'text-base font-semibold mt-3 mb-1',
+      4: 'text-sm font-semibold mt-2 mb-1',
+      5: 'text-sm font-medium mt-2 mb-1',
+      6: 'text-xs font-medium mt-2 mb-1',
+    };
+    return `<h${depth} class="${styles[depth] || ''}">${text}</h${depth}>`;
+  },
+
+  paragraph({ tokens }) {
+    const text = this.parser.parseInline(tokens);
+    return `<p class="my-1">${text}</p>`;
+  },
+
+  link({ href, tokens }) {
+    const text = this.parser.parseInline(tokens);
+    return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-accent hover:underline">${text}</a>`;
+  },
+
+  code({ text, lang }) {
+    const escapedCode = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const langClass = lang ? ` language-${lang}` : '';
+    return `<pre class="bg-bg-tertiary rounded p-2 my-2 overflow-x-auto text-sm"><code class="${langClass}">${escapedCode}</code></pre>`;
+  },
+
+  codespan({ text }) {
+    return `<code class="bg-bg-tertiary px-1 rounded text-sm">${text}</code>`;
+  },
+
+  list(token) {
+    const body = token.items.map((item) => this.listitem(item)).join('');
+    const tag = token.ordered ? 'ol' : 'ul';
+    const listClass = token.ordered ? 'list-decimal' : 'list-disc';
+    return `<${tag} class="${listClass} list-inside my-1">${body}</${tag}>`;
+  },
+
+  listitem(item) {
+    let text = this.parser.parse(item.tokens);
+    if (item.task) {
+      const checkbox = `<input type="checkbox" disabled ${item.checked ? 'checked' : ''} class="mr-1" />`;
+      text = checkbox + text;
+    }
+    return `<li>${text}</li>`;
+  },
+
+  blockquote({ tokens }) {
+    const text = this.parser.parse(tokens);
+    return `<blockquote class="border-l-4 border-border pl-4 my-2 text-text-secondary italic">${text}</blockquote>`;
+  },
+
+  hr() {
+    return '<hr class="my-4 border-border" />';
+  },
+
+  table(token) {
+    const headerCells = token.header
+      .map((cell, i) => this.tablecell({ ...cell, align: token.align[i] }))
+      .join('');
+    const header = `<tr class="border-b border-border">${headerCells}</tr>`;
+
+    const bodyRows = token.rows
+      .map((row) => {
+        const cells = row
+          .map((cell, i) => this.tablecell({ ...cell, align: token.align[i] }))
+          .join('');
+        return `<tr class="border-b border-border">${cells}</tr>`;
+      })
+      .join('');
+
+    return `<table class="w-full my-2 border-collapse"><thead>${header}</thead><tbody>${bodyRows}</tbody></table>`;
+  },
+
+  tablecell(token) {
+    const text = this.parser.parseInline(token.tokens);
+    const tag = token.header ? 'th' : 'td';
+    const alignClass = token.align ? ` text-${token.align}` : '';
+    const baseClass = token.header ? 'font-semibold' : '';
+    return `<${tag} class="px-2 py-1${alignClass} ${baseClass}">${text}</${tag}>`;
+  },
+
+  strong({ tokens }) {
+    return `<strong>${this.parser.parseInline(tokens)}</strong>`;
+  },
+
+  em({ tokens }) {
+    return `<em>${this.parser.parseInline(tokens)}</em>`;
+  },
+
+  del({ tokens }) {
+    return `<del>${this.parser.parseInline(tokens)}</del>`;
+  },
+
+  image({ href, title, text }) {
+    const titleAttr = title ? ` title="${title}"` : '';
+    return `<img src="${href}" alt="${text}"${titleAttr} class="max-w-full my-2 rounded" />`;
+  },
+};
+
+// 配置全局 marked 实例（description、focus 日志等）
+marked.use({ breaks: true, gfm: true, renderer: tailwindRenderer });
+
+/** 行内 label 里图片的样式：16px 行内图标，与 option case 的 `icon` 字段（`w-4 h-4`）视觉一致 */
+const INLINE_IMAGE_CLASS = 'mx-1 inline-block h-4 w-4 object-contain rounded-sm align-middle';
+
+/**
+ * 行内 label 专用实例。
+ *
+ * 用独立实例而不是"解析后正则改写 HTML"，避免与渲染器产出的 class 字面量强耦合：
+ * 1. `paragraph` 直接返回行内内容，不包 `<p>`；
+ * 2. `image` 输出 16px 行内图标，而不是 description 里的大图。
+ */
+const inlineMarked = new Marked({
   breaks: true,
   gfm: true,
   renderer: {
-    heading({ tokens, depth }) {
-      const text = this.parser.parseInline(tokens);
-      const styles: Record<number, string> = {
-        1: 'text-xl font-bold mt-4 mb-2',
-        2: 'text-lg font-semibold mt-4 mb-2',
-        3: 'text-base font-semibold mt-3 mb-1',
-        4: 'text-sm font-semibold mt-2 mb-1',
-        5: 'text-sm font-medium mt-2 mb-1',
-        6: 'text-xs font-medium mt-2 mb-1',
-      };
-      return `<h${depth} class="${styles[depth] || ''}">${text}</h${depth}>`;
-    },
-
+    ...tailwindRenderer,
     paragraph({ tokens }) {
-      const text = this.parser.parseInline(tokens);
-      return `<p class="my-1">${text}</p>`;
+      return this.parser.parseInline(tokens);
     },
-
-    link({ href, tokens }) {
-      const text = this.parser.parseInline(tokens);
-      return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-accent hover:underline">${text}</a>`;
-    },
-
-    code({ text, lang }) {
-      const escapedCode = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      const langClass = lang ? ` language-${lang}` : '';
-      return `<pre class="bg-bg-tertiary rounded p-2 my-2 overflow-x-auto text-sm"><code class="${langClass}">${escapedCode}</code></pre>`;
-    },
-
-    codespan({ text }) {
-      return `<code class="bg-bg-tertiary px-1 rounded text-sm">${text}</code>`;
-    },
-
-    list(token) {
-      const body = token.items.map((item) => this.listitem(item)).join('');
-      const tag = token.ordered ? 'ol' : 'ul';
-      const listClass = token.ordered ? 'list-decimal' : 'list-disc';
-      return `<${tag} class="${listClass} list-inside my-1">${body}</${tag}>`;
-    },
-
-    listitem(item) {
-      let text = this.parser.parse(item.tokens);
-      if (item.task) {
-        const checkbox = `<input type="checkbox" disabled ${item.checked ? 'checked' : ''} class="mr-1" />`;
-        text = checkbox + text;
-      }
-      return `<li>${text}</li>`;
-    },
-
-    blockquote({ tokens }) {
-      const text = this.parser.parse(tokens);
-      return `<blockquote class="border-l-4 border-border pl-4 my-2 text-text-secondary italic">${text}</blockquote>`;
-    },
-
-    hr() {
-      return '<hr class="my-4 border-border" />';
-    },
-
-    table(token) {
-      const headerCells = token.header
-        .map((cell, i) => this.tablecell({ ...cell, align: token.align[i] }))
-        .join('');
-      const header = `<tr class="border-b border-border">${headerCells}</tr>`;
-
-      const bodyRows = token.rows
-        .map((row) => {
-          const cells = row
-            .map((cell, i) => this.tablecell({ ...cell, align: token.align[i] }))
-            .join('');
-          return `<tr class="border-b border-border">${cells}</tr>`;
-        })
-        .join('');
-
-      return `<table class="w-full my-2 border-collapse"><thead>${header}</thead><tbody>${bodyRows}</tbody></table>`;
-    },
-
-    tablecell(token) {
-      const text = this.parser.parseInline(token.tokens);
-      const tag = token.header ? 'th' : 'td';
-      const alignClass = token.align ? ` text-${token.align}` : '';
-      const baseClass = token.header ? 'font-semibold' : '';
-      return `<${tag} class="px-2 py-1${alignClass} ${baseClass}">${text}</${tag}>`;
-    },
-
-    strong({ tokens }) {
-      return `<strong>${this.parser.parseInline(tokens)}</strong>`;
-    },
-
-    em({ tokens }) {
-      return `<em>${this.parser.parseInline(tokens)}</em>`;
-    },
-
-    del({ tokens }) {
-      return `<del>${this.parser.parseInline(tokens)}</del>`;
-    },
-
     image({ href, title, text }) {
       const titleAttr = title ? ` title="${title}"` : '';
-      return `<img src="${href}" alt="${text}"${titleAttr} class="max-w-full my-2 rounded" />`;
+      return `<img src="${href}" alt="${text}"${titleAttr} class="${INLINE_IMAGE_CLASS}" />`;
     },
   },
 });
 
+/** markdownToHtml 需要的最小解析能力；全局 marked 与 {@link inlineMarked} 都满足 */
+interface MarkdownParser {
+  parse(src: string, options: { async: false }): string;
+}
+
+/**
+ * DOMPurify 配置：集中一处，避免不同调用点的白名单漂移。
+ *
+ * 各调用点直接写 `DOMPurify.sanitize(..., PURIFY_CONFIG)`，不额外包本地 helper：
+ * 让「这段 HTML 已清理」在每个调用点上都显式可见。
+ */
+const PURIFY_CONFIG = { ADD_ATTR: ['target', 'rel', 'style'] };
+
 /**
  * 将 Markdown 转换为安全的 HTML
  * 使用 marked 解析 markdown，使用 DOMPurify 清理 HTML 防止 XSS
+ *
+ * @param markdown Markdown 文本
+ * @param parser 使用的 marked 实例；默认全局实例，行内 label 传入 {@link inlineMarked}
  */
-export function markdownToHtml(markdown: string): string {
-  const rawHtml = marked.parse(markdown, { async: false }) as string;
-  return DOMPurify.sanitize(rawHtml, {
-    ADD_ATTR: ['target', 'rel', 'style'],
-  });
+export function markdownToHtml(markdown: string, parser: MarkdownParser = marked): string {
+  return DOMPurify.sanitize(parser.parse(markdown, { async: false }), PURIFY_CONFIG);
+}
+
+/** 本地图片处理选项 */
+export interface LocalImageOptions {
+  /**
+   * 相对路径图片读取失败时是否移除对应 `<img>`。
+   * 默认 false（保留原始 src，交给渲染方决定降级方式）；label 等窄空间场景传 true。
+   */
+  dropFailedImages?: boolean;
+}
+
+/**
+ * 把 HTML 里相对路径的图片替换为 data URL。
+ *
+ * 安全约束：入参必须是**已清理**的 HTML（上游 {@link markdownToHtml} 已用 DOMPurify 处理）。
+ * 这里再做一次防御性 sanitize，让函数自身即使被新调用方误用也不会成为注入点。
+ * 顺序放在替换 data URL **之前**：这样只需要清理资源作者提供的内容，不必把随后内联进来的
+ * base64 图片（可能很大）再送进 DOMPurify 解析一遍。
+ *
+ * 用 DOM 而不是正则改写：属性顺序、alt/title 里的特殊字符、路径里的引号都不会影响结果。
+ */
+async function resolveLocalImages(
+  html: string,
+  basePath: string,
+  options: LocalImageOptions = {},
+): Promise<string> {
+  // 解析富文本片段用 Range.createContextualFragment，而不是 `container.innerHTML = ...`。
+  // 值本身已经是 DOMPurify 的产物，但静态扫描（opengrep 的 insecure-innerhtml /
+  // insecure-document-method）对 innerHTML 写入没有 sanitizer 例外，会一直把它报成 XSS 风险；
+  // 片段解析不会执行脚本，末尾也只读取序列化结果（读取不是危险 sink）。
+  const container = document.createElement('div');
+  container.append(
+    document.createRange().createContextualFragment(DOMPurify.sanitize(html, PURIFY_CONFIG)),
+  );
+
+  await Promise.all(
+    Array.from(container.querySelectorAll('img')).map(async (img) => {
+      const src = img.getAttribute('src');
+      // 跳过已经是 data URL 或 http(s) URL 的图片
+      if (!src || src.startsWith('data:') || isUrl(src)) return;
+
+      const dataUrl = await loadIconAsDataUrl(src, basePath);
+      if (dataUrl) {
+        img.setAttribute('src', dataUrl);
+      } else if (options.dropFailedImages) {
+        img.remove();
+      }
+    }),
+  );
+
+  return container.innerHTML;
 }
 
 /**
  * 将 Markdown 转换为 HTML，并将相对路径图片转换为 data URL
  * @param markdown Markdown 文本
  * @param basePath 资源基础路径（用于解析相对路径图片）
+ * @param options 本地图片处理选项
  * @returns 处理后的 HTML
  */
 export async function markdownToHtmlWithLocalImages(
   markdown: string,
   basePath: string = '',
+  options: LocalImageOptions = {},
 ): Promise<string> {
-  // 先转换为 HTML
-  let html = markdownToHtml(markdown);
-
-  // 匹配 HTML 中的 img 标签的 src 属性
-  const imgRegex = /<img[^>]+src="([^"]+)"[^>]*>/g;
-  const matches = [...html.matchAll(imgRegex)];
-
-  // 收集需要转换的相对路径图片
-  const imagePromises: Promise<{ original: string; dataUrl: string | null }>[] = [];
-
-  for (const match of matches) {
-    const src = match[1];
-    // 跳过已经是 data URL 或 http(s) URL 的图片
-    if (src.startsWith('data:') || isUrl(src)) continue;
-
-    imagePromises.push(
-      (async () => {
-        try {
-          const dataUrl = await loadIconAsDataUrl(src, basePath);
-          return { original: src, dataUrl: dataUrl || null };
-        } catch {
-          return { original: src, dataUrl: null };
-        }
-      })(),
-    );
-  }
-
-  // 等待所有图片加载完成
-  const results = await Promise.all(imagePromises);
-
-  // 替换图片路径为 data URL
-  for (const { original, dataUrl } of results) {
-    if (dataUrl) {
-      // 转义正则特殊字符
-      const escapedSrc = original.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      html = html.replace(new RegExp(`src="${escapedSrc}"`, 'g'), `src="${dataUrl}"`);
-    }
-  }
-
-  return html;
+  return resolveLocalImages(markdownToHtml(markdown), basePath, options);
 }
 
 /**
@@ -590,6 +715,46 @@ export const simpleMarkdownToHtml = markdownToHtml;
 // ============================================================================
 
 import { useState, useEffect } from 'react';
+
+/** {@link useInlineLabelHtml} 的返回值 */
+export interface InlineLabelHtmlResult {
+  /** 解析完成的 HTML；不含富文本标记、或尚未解析完成时为空串 */
+  html: string;
+  /** 是否正在解析。为 true 时调用方应先用纯文本占位，避免闪出 Markdown 源码 */
+  pending: boolean;
+}
+
+/**
+ * React Hook：把 label 文本渲染成行内 HTML。
+ *
+ * 结果按 `basePath|text` 记账：只有解析结果与当前文本匹配时才返回 HTML，
+ * 因此文本变化时不会短暂返回上一条 label 的 HTML（图标串台）。
+ */
+export function useInlineLabelHtml(
+  text: string | undefined,
+  basePath: string = '',
+): InlineLabelHtmlResult {
+  // 纯文本 label 不解析：绝大多数 label 走这条快路径，不付 marked / 读图开销
+  const key = text && hasInlineRichText(text) ? `${basePath}|${text}` : '';
+  const [resolved, setResolved] = useState<{ key: string; html: string }>({ key: '', html: '' });
+
+  useEffect(() => {
+    if (!text || !hasInlineRichText(text)) {
+      setResolved({ key: '', html: '' });
+      return;
+    }
+    let cancelled = false;
+    inlineMarkdownToHtmlWithLocalImages(text, basePath).then((html) => {
+      if (!cancelled) setResolved({ key: `${basePath}|${text}`, html });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [text, basePath]);
+
+  if (!key || resolved.key !== key) return { html: '', pending: !!key };
+  return { html: resolved.html, pending: false };
+}
 
 /** useResolvedContent Hook 的返回值 */
 export interface UseResolvedContentResult {

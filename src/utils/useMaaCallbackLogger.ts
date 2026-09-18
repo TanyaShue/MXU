@@ -19,6 +19,7 @@ import {
   resolveContent,
   markdownToHtmlWithLocalImages,
 } from '@/services/contentResolver';
+import { hasRichTextFeatures } from '@/utils/richText';
 import type { FocusTemplate, FocusDisplayChannel } from '@/types/interface';
 
 const log = loggers.app;
@@ -131,13 +132,8 @@ async function resolveFocusContent(
 
   // 5. 如果是直接文本，检查是否包含富文本特征
   if (contentType === 'text') {
-    // 检测是否包含 Markdown 语法、HTML 标签或 URL
-    const hasRichContent =
-      /[*_`#\[\]!]/.test(resolved) || // Markdown 语法
-      resolved.includes('\n') || // 多行内容
-      /<[a-z][\s\S]*?>/i.test(resolved) || // HTML 标签
-      /https?:\/\/\S+/.test(resolved); // URL
-    if (hasRichContent) {
+    // 判定规则集中在 utils/richText，避免各处各写一套正则
+    if (hasRichTextFeatures(resolved)) {
       const html = await markdownToHtmlWithLocalImages(resolved, basePath);
       return { message: resolved, html };
     }

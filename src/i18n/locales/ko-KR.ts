@@ -521,7 +521,6 @@ export default {
       stopTask: '작업 중지',
       // 예약 메시지
       scheduleStarting: '예약 실행 시작 [{{policy}}] {{time}}',
-      scheduleCompensating: '예약 보상 실행 [{{policy}}] {{time}} (절전/복귀 후 보완 실행)',
       scheduleRandomGenerated:
         '예약 [{{policy}}]이(가) 시간 범위 {{range}}에서 오늘의 무작위 시작 시간 {{time}}을(를) 생성했습니다',
       // Agent 메시지
@@ -539,6 +538,8 @@ export default {
       hotkeyActionStop: '작업 중지',
       hotkeyStartSuccess: '단축키로 작업을 시작했습니다:',
       hotkeyStopSuccess: '단축키로 작업을 중지했습니다',
+      hotkeyStopPending:
+        '중지 요청을 보냈지만 작업은 아직 현재 작업이 종료되기를 기다리고 있습니다.',
       hotkeyStopFailed: '단축키로 작업을 중지하지 못했습니다',
     },
   },

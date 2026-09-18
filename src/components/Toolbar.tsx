@@ -211,6 +211,7 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
   const preActionControlledInstanceIdRef = useRef<string | null>(null);
   const preActionStopRequestedRef = useRef(false);
   const lastStartCancelledRef = useRef(false);
+  const startingRef = useRef(false);
 
   const instance = getActiveInstance();
   const tasks = instance?.selectedTasks || [];
@@ -1468,17 +1469,16 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
   useEffect(() => {
     if (!isTauri()) return;
 
-    scheduleService.setTriggerCallback(async (inst, policyName, slotLabel, isCompensation) => {
+    scheduleService.setTriggerCallback(async (inst, policyName, slotLabel) => {
       const currentT = tRef.current;
       const currentAddLog = addLogRef.current;
 
-      const msgKey = isCompensation
-        ? 'logs.messages.scheduleCompensating'
-        : 'logs.messages.scheduleStarting';
-
       currentAddLog(inst.id, {
         type: 'info',
-        message: currentT(msgKey, { policy: policyName, time: slotLabel }),
+        message: currentT('logs.messages.scheduleStarting', {
+          policy: policyName,
+          time: slotLabel,
+        }),
       });
 
       const started = await scheduleTriggerRef.current(inst, {
@@ -1541,8 +1541,8 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
    * 停止任务的统一流程：复用公共 stop helper，保持各入口行为一致
    * handleStartStop 和 handleStopTasks 共用此逻辑以保持行为一致。
    */
-  const performStop = async (targetInstanceId: string) => {
-    if (isStopping) return;
+  const performStop = async (targetInstanceId: string): Promise<boolean> => {
+    if (isStopping) return false;
     setIsStopping(true);
     let keepStoppingForPreAction = false;
     try {
@@ -1556,12 +1556,14 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
           log.error('发送前置程序停止请求失败:', err);
           throw err;
         }
-        return;
+        // 前置程序仅收到停止请求，尚未完成整个任务的停止。
+        return false;
       }
       const stopped = await stopInstanceTasks(targetInstanceId);
       if (!stopped) {
         log.warn('等待任务停止超时，保留运行状态以避免 UI 与实际不一致');
       }
+      return stopped;
     } finally {
       if (!keepStoppingForPreAction) {
         setIsStopping(false);
@@ -1586,31 +1588,41 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
         return;
       }
 
-      // 检查是否需要管理员权限
-      const needsElevation = await checkPermissionRequired();
-      if (needsElevation) {
-        setShowPermissionModal(true);
-        return;
-      }
-
-      setIsStarting(true);
-      setAutoConnectError(null);
+      // isStarting 是 state，disabled 要等重新渲染才生效，挡不住同一 tick 内的连点
+      if (startingRef.current) return;
+      startingRef.current = true;
 
       try {
-        // 调用统一入口启动任务，传入进度回调以更新 UI 状态
-        const success = await startTasksForInstance(instance, {
-          onPhaseChange: setAutoConnectPhase,
-        });
+        // 检查是否需要管理员权限
+        const needsElevation = await checkPermissionRequired();
+        if (needsElevation) {
+          setShowPermissionModal(true);
+          return;
+        }
 
-        if (!success && !lastStartCancelledRef.current) {
-          throw new Error(t('taskList.autoConnect.startFailed'));
+        setIsStarting(true);
+        setAutoConnectError(null);
+
+        try {
+          // 调用统一入口启动任务，传入进度回调以更新 UI 状态
+          const success = await startTasksForInstance(instance, {
+            onPhaseChange: setAutoConnectPhase,
+          });
+
+          if (!success && !lastStartCancelledRef.current) {
+            throw new Error(t('taskList.autoConnect.startFailed'));
+          }
+        } catch (err) {
+          log.error('任务启动异常:', err);
+          setAutoConnectError(err instanceof Error ? err.message : String(err));
+          setAutoConnectPhase('idle');
+        } finally {
+          setIsStarting(false);
         }
       } catch (err) {
-        log.error('任务启动异常:', err);
-        setAutoConnectError(err instanceof Error ? err.message : String(err));
-        setAutoConnectPhase('idle');
+        log.error('启动前检查异常:', err);
       } finally {
-        setIsStarting(false);
+        startingRef.current = false;
       }
     }
   };
@@ -1694,12 +1706,19 @@ export function Toolbar({ showAddPanel, onToggleAddPanel, className }: ToolbarPr
       });
 
       try {
-        await performStop(runningInstance.id);
+        const stopped = await performStop(runningInstance.id);
 
-        addLog(runningInstance.id, {
-          type: 'success',
-          message: t('logs.messages.hotkeyStopSuccess'),
-        });
+        if (stopped) {
+          addLog(runningInstance.id, {
+            type: 'success',
+            message: t('logs.messages.hotkeyStopSuccess'),
+          });
+        } else {
+          addLog(runningInstance.id, {
+            type: 'warning',
+            message: t('logs.messages.hotkeyStopPending'),
+          });
+        }
       } catch (err) {
         log.error('停止任务失败:', err);
         addLog(runningInstance.id, {

@@ -496,18 +496,35 @@ body {
 }
 
 /* 背景图片模式下让UI元素背景半透明 */
+.has-background-image {
+  --mxu-bg-primary: color-mix(in srgb, var(--color-bg-primary) 45%, transparent);
+  --mxu-bg-secondary: color-mix(in srgb, var(--color-bg-secondary) 40%, transparent);
+  --mxu-bg-tertiary: color-mix(in srgb, var(--color-bg-tertiary) 40%, transparent);
+  --mxu-bg-hover: color-mix(in srgb, var(--color-bg-hover) 40%, transparent);
+}
+
+/* 悬浮层（下拉、弹出面板、抽屉、模态框）：比页面面板更实并叠加毛玻璃，
+   避免壁纸透过来干扰读字。借变量继承让浮层内部的 hover 态跟随同一不透明度。 */
+.has-background-image .mxu-overlay-surface {
+  --mxu-bg-primary: color-mix(in srgb, var(--color-bg-primary) 55%, transparent);
+  --mxu-bg-secondary: color-mix(in srgb, var(--color-bg-secondary) 50%, transparent);
+  --mxu-bg-tertiary: color-mix(in srgb, var(--color-bg-tertiary) 50%, transparent);
+  --mxu-bg-hover: color-mix(in srgb, var(--color-bg-hover) 50%, transparent);
+  backdrop-filter: blur(12px);
+}
+
 .has-background-image .bg-bg-secondary {
-  background-color: color-mix(in srgb, var(--color-bg-secondary) 40%, transparent) !important;
+  background-color: var(--mxu-bg-secondary) !important;
 }
 
 .has-background-image .bg-bg-tertiary {
-  background-color: color-mix(in srgb, var(--color-bg-tertiary) 40%, transparent) !important;
+  background-color: var(--mxu-bg-tertiary) !important;
 }
 
 .has-background-image .bg-bg-hover:hover {
-  background-color: color-mix(in srgb, var(--color-bg-hover) 40%, transparent) !important;
+  background-color: var(--mxu-bg-hover) !important;
 }
 
 .has-background-image .bg-bg-primary {
-  background-color: color-mix(in srgb, var(--color-bg-primary) 45%, transparent) !important;
+  background-color: var(--mxu-bg-primary) !important;
 }

@@ -32,7 +32,7 @@ import {
 } from '@/services';
 import type { ConfigRecoveryNotice } from '@/services';
 import type { LogEntry, LogType } from '@/stores/types';
-import { loadIconAsDataUrl } from '@/services/contentResolver';
+import { clearIconDataUrlCache, loadIconAsDataUrl } from '@/services/contentResolver';
 import * as wsService from '@/services/wsService';
 import {
   downloadUpdate,
@@ -651,6 +651,8 @@ function App() {
       log.info('加载 interface.json...');
       const result = await autoLoadInterface();
       setProjectInterface(result.interface);
+      // 资源目录可能被换掉：先失效图标 data URL 缓存，避免复用旧资源包的图标
+      clearIconDataUrlCache();
       setBasePath(result.basePath);
       setDataPath(result.dataPath);
       // 缓存后端真实 OS/架构，供控制器过滤、更新资产匹配、useCmd 开关等消费

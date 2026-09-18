@@ -236,6 +236,7 @@ export type OptionType = 'select' | 'checkbox' | 'input' | 'switch' | 'hotkey';
 
 export interface CaseItem {
   name: string;
+  /** 可选。UI 展示名称，支持国际化字符串（以 $ 开头）。MXU 扩展：支持行内 Markdown，渲染见 components/RichLabel.tsx */
   label?: string;
   description?: string;
   icon?: string;
@@ -245,6 +246,7 @@ export interface CaseItem {
 
 export interface InputItem {
   name: string;
+  /** 可选。UI 展示名称，支持国际化字符串（以 $ 开头）。MXU 扩展：支持行内 Markdown，渲染见 components/RichLabel.tsx */
   label?: string;
   description?: string;
   icon?: string;
@@ -264,6 +266,7 @@ export interface InputItem {
 
 export interface SelectOption {
   type?: 'select';
+  /** 可选。UI 展示名称，支持国际化字符串（以 $ 开头）。MXU 扩展：支持行内 Markdown，渲染见 components/RichLabel.tsx */
   label?: string;
   description?: string;
   icon?: string;
@@ -277,6 +280,7 @@ export interface SelectOption {
 /** v2.3.0: 多选框类型 */
 export interface CheckboxOption {
   type: 'checkbox';
+  /** 可选。UI 展示名称，支持国际化字符串（以 $ 开头）。MXU 扩展：支持行内 Markdown，渲染见 components/RichLabel.tsx */
   label?: string;
   description?: string;
   icon?: string;
@@ -292,6 +296,7 @@ export interface CheckboxOption {
 
 export interface SwitchOption {
   type: 'switch';
+  /** 可选。UI 展示名称，支持国际化字符串（以 $ 开头）。MXU 扩展：支持行内 Markdown，渲染见 components/RichLabel.tsx */
   label?: string;
   description?: string;
   icon?: string;
@@ -303,6 +308,7 @@ export interface SwitchOption {
 
 export interface InputOption {
   type: 'input';
+  /** 可选。UI 展示名称，支持国际化字符串（以 $ 开头）。MXU 扩展：支持行内 Markdown，渲染见 components/RichLabel.tsx */
   label?: string;
   description?: string;
   icon?: string;
@@ -314,6 +320,7 @@ export interface InputOption {
 
 export interface HotkeyOption {
   type: 'hotkey';
+  /** 可选。UI 展示名称，支持国际化字符串（以 $ 开头）。MXU 扩展：支持行内 Markdown，渲染见 components/RichLabel.tsx */
   label?: string;
   description?: string;
   icon?: string;

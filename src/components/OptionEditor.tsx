@@ -18,7 +18,9 @@ import {
 import { getInterfaceLangKey } from '@/i18n';
 import { findSwitchCase } from '@/utils/optionHelpers';
 import { getCheckboxMaxCount, getCheckboxMinCount } from '@/utils/checkboxOptionValidation';
+import { stripInlineRichText } from '@/utils/richText';
 import { SwitchButton, TextInput, FileInput, TimeInput, HotkeyInput } from './FormControls';
+import { RichLabel } from './RichLabel';
 import { Tooltip } from './ui/Tooltip';
 
 /** 判断 switch 类型的选项是否有子选项 */
@@ -128,7 +130,7 @@ function OptionLabel({
           className="w-4 h-4 object-contain flex-shrink-0"
         />
       )}
-      <span className="text-sm text-text-secondary">{label}</span>
+      <RichLabel text={label} className="text-sm text-text-secondary" />
     </div>
   );
 }
@@ -311,7 +313,7 @@ function InputField({
               className="w-4 h-4 object-contain flex-shrink-0"
             />
           )}
-          <span className="text-sm text-text-tertiary truncate">{inputLabel}</span>
+          <RichLabel text={inputLabel} className="text-sm text-text-tertiary truncate" />
           {inputDescription && (
             <Tooltip content={inputDescription} side="top" align="start" maxWidth="max-w-[200px]">
               <Info className="w-3.5 h-3.5 text-text-muted cursor-help flex-shrink-0" />
@@ -671,7 +673,7 @@ export function OptionEditor({
                       className="w-4 h-4 object-contain flex-shrink-0"
                     />
                   )}
-                  <span className="truncate">{caseLabel}</span>
+                  <RichLabel text={caseLabel} className="truncate" />
                 </span>
               </button>
             );
@@ -996,7 +998,7 @@ function OptionSelectDropdown({
               className="w-4 h-4 object-contain flex-shrink-0"
             />
           )}
-          {selectedOption?.label}
+          <RichLabel text={selectedOption?.label ?? ''} />
         </span>
         <ChevronDown
           className={clsx('w-4 h-4 text-text-secondary transition-transform', open && 'rotate-180')}
@@ -1007,7 +1009,7 @@ function OptionSelectDropdown({
         <div
           id={listboxId}
           ref={listboxRef}
-          className="absolute z-20 mt-1 w-full max-h-60 overflow-y-auto rounded-lg border border-border bg-bg-primary shadow-lg outline-none"
+          className="mxu-overlay-surface absolute z-20 mt-1 w-full max-h-60 overflow-y-auto rounded-lg border border-border bg-bg-primary shadow-lg outline-none"
           role="listbox"
           aria-labelledby={triggerId}
           tabIndex={-1}
@@ -1045,7 +1047,7 @@ function OptionSelectDropdown({
                       className="w-4 h-4 object-contain flex-shrink-0"
                     />
                   )}
-                  {opt.label}
+                  <RichLabel text={opt.label} />
                 </span>
                 {isSelected && <Check className="w-4 h-4 flex-shrink-0" />}
               </button>
@@ -1078,12 +1080,14 @@ function OptionSelectComboBox({
 
   const selectedOption = options.find((opt) => opt.value === value) ?? options[0];
 
-  // 过滤选项
+  // 过滤选项：label 可能含行内 Markdown（图标等），按去掉标记的纯文本匹配
   const filteredOptions = useMemo(() => {
     if (!searchQuery.trim()) return options;
     const query = searchQuery.toLowerCase();
     return options.filter(
-      (opt) => opt.label.toLowerCase().includes(query) || opt.value.toLowerCase().includes(query),
+      (opt) =>
+        stripInlineRichText(opt.label).toLowerCase().includes(query) ||
+        opt.value.toLowerCase().includes(query),
     );
   }, [options, searchQuery]);
 
@@ -1212,7 +1216,7 @@ function OptionSelectComboBox({
               className="w-4 h-4 object-contain flex-shrink-0"
             />
           )}
-          {selectedOption?.label}
+          <RichLabel text={selectedOption?.label ?? ''} />
         </span>
         <ChevronDown
           className={clsx('w-4 h-4 text-text-secondary transition-transform', open && 'rotate-180')}
@@ -1220,7 +1224,7 @@ function OptionSelectComboBox({
       </button>
 
       {open && !isDisabled && (
-        <div className="absolute z-20 mt-1 w-full rounded-lg border border-border bg-bg-primary shadow-lg overflow-hidden">
+        <div className="mxu-overlay-surface absolute z-20 mt-1 w-full rounded-lg border border-border bg-bg-primary shadow-lg overflow-hidden">
           {/* 搜索输入框 */}
           <div className="p-2 border-b border-border">
             <input
@@ -1286,7 +1290,7 @@ function OptionSelectComboBox({
                           className="w-4 h-4 object-contain flex-shrink-0"
                         />
                       )}
-                      {opt.label}
+                      <RichLabel text={opt.label} />
                     </span>
                     {isSelected && <Check className="w-4 h-4 flex-shrink-0" />}
                   </button>
@@ -1303,6 +1307,7 @@ function OptionSelectComboBox({
 /** Switch 网格组件的单个项 */
 interface SwitchGridItemData {
   optionKey: string;
+  /** UI 展示名称，可能含行内 Markdown（图标等）；原生 title 等纯文本场景需先 stripInlineRichText */
   label: string;
   description?: string;
   isChecked: boolean;
@@ -1351,9 +1356,9 @@ export function SwitchGrid({ instanceId, taskId, items, disabled = false }: Swit
                   : 'bg-bg-primary text-text-secondary border-border hover:border-accent hover:text-accent',
                 itemDisabled && 'opacity-60 cursor-not-allowed',
               )}
-              title={item.description || item.label}
+              title={item.description || stripInlineRichText(item.label)}
             >
-              {item.label}
+              <RichLabel text={item.label} />
             </button>
           </Tooltip>
         );

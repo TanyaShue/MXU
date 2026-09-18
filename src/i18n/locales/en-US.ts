@@ -531,8 +531,6 @@ export default {
       stopTask: 'Stop Task',
       // Schedule messages
       scheduleStarting: 'Scheduled execution started [{{policy}}] {{time}}',
-      scheduleCompensating:
-        'Compensated scheduled execution [{{policy}}] {{time}} (triggered after sleep/wake)',
       scheduleRandomGenerated:
         "Schedule [{{policy}}] generated today's random start time {{time}} within {{range}}",
       // Agent messages
@@ -550,6 +548,8 @@ export default {
       hotkeyActionStop: 'Stop tasks',
       hotkeyStartSuccess: 'Started tasks via hotkey:',
       hotkeyStopSuccess: 'Stopped tasks via hotkey',
+      hotkeyStopPending:
+        'The stop request was sent, but the task is still waiting for the current operation to exit.',
       hotkeyStopFailed: 'Failed to stop tasks via hotkey',
     },
   },

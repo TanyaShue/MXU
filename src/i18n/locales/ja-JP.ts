@@ -530,7 +530,6 @@ export default {
       stopTask: 'タスクを停止',
       // スケジュールメッセージ
       scheduleStarting: 'スケジュール実行を開始 [{{policy}}] {{time}}',
-      scheduleCompensating: 'スケジュール補償実行 [{{policy}}] {{time}}（スリープ復帰後の補完）',
       scheduleRandomGenerated:
         'スケジュール [{{policy}}] は時間帯 {{range}} 内の今日のランダム開始時刻 {{time}} を生成しました',
       // Agent メッセージ
@@ -548,6 +547,8 @@ export default {
       hotkeyActionStop: 'タスク停止',
       hotkeyStartSuccess: 'ショートカットキーでタスクを開始しました：',
       hotkeyStopSuccess: 'ショートカットキーでタスクを停止しました',
+      hotkeyStopPending:
+        '停止リクエストは送信されましたが、タスクは現在の操作が終了するのを待っています。',
       hotkeyStopFailed: 'ショートカットキーでタスクを停止できませんでした',
     },
   },

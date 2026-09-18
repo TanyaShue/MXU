@@ -515,7 +515,6 @@ export default {
       stopTask: '停止任务',
       // 定时任务消息
       scheduleStarting: '定时执行开始 [{{policy}}] {{time}}',
-      scheduleCompensating: '定时补偿执行 [{{policy}}] {{time}}（睡眠/恢复后补触发）',
       scheduleRandomGenerated:
         '定时策略 [{{policy}}] 已在时间段 {{range}} 内生成今日随机启动时间: {{time}}',
       // Agent 消息
@@ -533,6 +532,7 @@ export default {
       hotkeyActionStop: '停止任务',
       hotkeyStartSuccess: '已通过快捷键开始任务：',
       hotkeyStopSuccess: '已通过快捷键停止任务',
+      hotkeyStopPending: '停止请求已发送，但任务仍在等待当前操作退出。',
       hotkeyStopFailed: '未能通过快捷键停止任务',
     },
   },
