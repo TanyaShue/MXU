@@ -36,7 +36,12 @@ import type {
   SelectedTask,
 } from '@/types/interface';
 import type { ConnectionStatus, TaskStatus } from '@/types/maa';
-import { getMxuSpecialTask, isMxuSpecialTask, MXU_SPECIAL_TASKS } from '@/types/specialTasks';
+import {
+  getAllMxuSpecialTasksOptions,
+  getMxuSpecialTask,
+  isMxuSpecialTask,
+  MXU_SPECIAL_TASKS,
+} from '@/types/specialTasks';
 import {
   getPretaskItems,
   pretaskName,
@@ -122,12 +127,32 @@ function migratePreActions(inst: {
   return undefined;
 }
 
+/** MXU 内置特殊任务的选项定义（注册表在运行期固定，首次使用时缓存） */
+let mxuSpecialTaskOptionDefsCache: Record<string, OptionDefinition> | null = null;
+function getMxuSpecialTaskOptionDefs(): Record<string, OptionDefinition> {
+  mxuSpecialTaskOptionDefsCache ??= getAllMxuSpecialTasksOptions();
+  return mxuSpecialTaskOptionDefsCache;
+}
+
+/**
+ * 选项定义全集：Project Interface 声明的选项 + MXU 内置特殊任务的选项。
+ *
+ * MXU 特殊任务的选项（如 __MXU_LAUNCH_OPTION__）只存在于内部注册表中，
+ * 并不在 pi.option 里。清洗 / 加解密选项值时必须一并提供，否则这些选项会被
+ * 当作“已删除的选项”丢弃，导致自定义程序等特殊任务的参数在重启后丢失。
+ */
+function getAllOptionDefs(pi: ProjectInterface | null): Record<string, OptionDefinition> | null {
+  if (!pi) return null;
+  return { ...(pi.option ?? {}), ...getMxuSpecialTaskOptionDefs() };
+}
+
 function cleanOptionValues(
   optionValues: Record<string, OptionValue>,
   pi: ProjectInterface | null,
 ): Record<string, OptionValue> {
-  if (!pi?.option) return {};
-  return sanitizeOptionValues(optionValues, pi.option, (message) => loggers.config.warn(message));
+  const allOptions = getAllOptionDefs(pi);
+  if (!allOptions) return {};
+  return sanitizeOptionValues(optionValues, allOptions, (message) => loggers.config.warn(message));
 }
 
 function restoreOptionValuesFromConfig(
@@ -135,8 +160,9 @@ function restoreOptionValuesFromConfig(
   pi: ProjectInterface | null,
   projectName?: string,
 ): Record<string, OptionValue> {
+  const allOptions = getAllOptionDefs(pi);
   const cleaned = cleanOptionValues(optionValues, pi);
-  return pi?.option ? decryptPasswordOptionValues(cleaned, pi.option, projectName) : cleaned;
+  return allOptions ? decryptPasswordOptionValues(cleaned, allOptions, projectName) : cleaned;
 }
 
 function persistOptionValues(
@@ -144,8 +170,9 @@ function persistOptionValues(
   pi: ProjectInterface | null,
   projectName?: string,
 ): Record<string, OptionValue> {
-  return pi?.option
-    ? encryptPasswordOptionValues(optionValues, pi.option, projectName)
+  const allOptions = getAllOptionDefs(pi);
+  return allOptions
+    ? encryptPasswordOptionValues(optionValues, allOptions, projectName)
     : optionValues;
 }
 
@@ -1492,9 +1519,18 @@ export const useAppStore = create<AppState>()(
         const savedTasks: SelectedTask[] = inst.tasks
           .filter((t) => validTaskNames.has(t.taskName))
           .map((t) => {
-            // MXU 特殊任务使用独立的选项系统，直接保留其
-            // optionValues
+            // MXU 特殊任务使用独立的选项系统（选项定义来自内部注册表），
+            // 清洗时需使用注册表中的定义，否则其参数会被当作已删除选项丢弃
             if (isMxuSpecialTask(t.taskName)) {
+              const specialTask = getMxuSpecialTask(t.taskName);
+              const cleanedValues = restoreOptionValuesFromConfig(t.optionValues, pi, pi?.name);
+              // 为缺失的 option 补充默认值（与普通任务保持一致）
+              const defaultValues = specialTask
+                ? initializeAllOptionValues(
+                    Object.keys(specialTask.optionDefs),
+                    specialTask.optionDefs,
+                  )
+                : {};
               return {
                 id: t.id,
                 taskName: t.taskName,
@@ -1503,7 +1539,7 @@ export const useAppStore = create<AppState>()(
                 enabled: t.enabled,
                 runOnce: t.runOnce,
                 enabledByController: t.enabledByController,
-                optionValues: restoreOptionValuesFromConfig(t.optionValues, pi, pi?.name),
+                optionValues: { ...defaultValues, ...cleanedValues },
                 expanded: prevExpandedByTask.get(t.id) ?? t.expanded ?? false,
                 collapsedOptions: prevCollapsedByTask.get(t.id) ?? t.collapsedOptions,
               };
