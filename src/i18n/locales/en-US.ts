@@ -708,6 +708,9 @@ export default {
   mirrorChyan: {
     title: 'Update',
     debugModeNotice: 'Debug version detected, auto-update is disabled',
+    autoUpdate: 'Auto Update',
+    autoUpdateHint:
+      'Automatically check for and download updates on launch (enabled by default). When disabled, updates are no longer checked or downloaded on startup.',
     channel: 'Update Channel',
     channelStable: 'Stable',
     channelBeta: 'Beta',

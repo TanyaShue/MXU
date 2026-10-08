@@ -708,6 +708,9 @@ export default {
   mirrorChyan: {
     title: 'アップデート',
     debugModeNotice: 'デバッグバージョンのため、自動更新機能が無効になっています',
+    autoUpdate: '自動更新',
+    autoUpdateHint:
+      '起動時に更新を自動で確認してダウンロードします（既定で有効）。無効にすると、起動時の自動確認とダウンロードを行いません。',
     channel: '更新チャンネル',
     channelStable: '安定版',
     channelBeta: 'ベータ版',

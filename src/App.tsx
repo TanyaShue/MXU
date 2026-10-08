@@ -706,6 +706,10 @@ function App() {
         importConfig(config);
       }
 
+      // 没有实例时不会走 importConfig，单独同步自动更新开关：
+      // 否则设置页会显示默认的「开启」，后续保存还会把用户关闭的状态覆盖回开启
+      useAppStore.getState().setAutoUpdate(config.settings.autoUpdate ?? true);
+
       // 初始化匿名遥测（仅当 interface 声明了 telemetry.sentry.dsn 且非调试 / 开发版本）
       // 即便用户当前关闭，也传入配置以便后端缓存，用户在设置中开启时无需重启
       const sentryCfg = result.interface.telemetry?.sentry;
@@ -1110,12 +1114,15 @@ function App() {
         }
       }
 
-      // 自动检查更新并下载（调试版本跳过，MXU 开发模式跳过）
+      // 自动检查更新并下载（调试版本跳过，MXU 开发模式跳过，用户关闭自动更新时跳过）
       if (result.interface.mirrorchyan_rid && result.interface.version) {
         if (import.meta.env.DEV) {
           log.info('MXU 开发模式，跳过自动更新检查');
         } else if (isDebugVersion(result.interface.version)) {
           log.info(`非正式版本 (${result.interface.version})，跳过自动更新检查`);
+        } else if (!(config.settings.autoUpdate ?? true)) {
+          // 设置项关闭：启动后不自动检查、也不自动下载更新（仍可在设置页手动检查）
+          log.info('已关闭自动更新，跳过自动检查与下载');
         } else {
           const appState = useAppStore.getState();
           try {

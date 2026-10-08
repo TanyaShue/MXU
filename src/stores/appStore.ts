@@ -270,6 +270,7 @@ export const useAppStore = create<AppState>()(
     maxLogsPerInstance: DEFAULT_MAX_LOGS_PER_INSTANCE,
     autoClearLogsOnLaunch: false,
     helpImproveSoftware: true,
+    autoUpdate: true,
     customAccents: [],
     setTheme: (theme) => {
       set({ theme });
@@ -315,6 +316,9 @@ export const useAppStore = create<AppState>()(
       const next = blocked ? false : enabled;
       set({ helpImproveSoftware: next });
       void setTelemetryEnabled(next);
+    },
+    setAutoUpdate: (enabled) => {
+      set({ autoUpdate: enabled });
     },
     addCustomAccent: (accent) => {
       set((state) => ({
@@ -1702,6 +1706,8 @@ export const useAppStore = create<AppState>()(
         helpImproveSoftware: isTelemetryBlockedByBuild(get().projectInterface)
           ? false
           : (config.settings.helpImproveSoftware ?? true),
+        // 默认开启
+        autoUpdate: config.settings.autoUpdate ?? true,
         customAccents: effectiveCustomAccents,
         selectedController,
         selectedResource,
@@ -2684,6 +2690,7 @@ function generateConfig(): MxuConfig {
           maxLogsPerInstance: state.maxLogsPerInstance,
           autoClearLogsOnLaunch: state.autoClearLogsOnLaunch,
           helpImproveSoftware: state.helpImproveSoftware,
+          autoUpdate: state.autoUpdate,
           windowSize: bl?.windowSize ?? state.windowSize,
           windowPosition: bl?.windowPosition ?? state.windowPosition,
           showOptionPreview: bl?.showOptionPreview ?? state.showOptionPreview,
@@ -2774,6 +2781,7 @@ useAppStore.subscribe(
     maxLogsPerInstance: state.maxLogsPerInstance,
     autoClearLogsOnLaunch: state.autoClearLogsOnLaunch,
     helpImproveSoftware: state.helpImproveSoftware,
+    autoUpdate: state.autoUpdate,
     mirrorChyanSettings: state.mirrorChyanSettings,
     proxySettings: state.proxySettings,
     welcomeShownHash: state.welcomeShownHash,

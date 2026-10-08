@@ -30,6 +30,7 @@ import { createProxySettings, proxySettingsForUpdateDownload } from '@/services/
 import { resolveI18nText } from '@/services/contentResolver';
 import { getInterfaceLangKey } from '@/i18n';
 import { loggers } from '@/utils/logger';
+import { SwitchButton } from '../FormControls';
 import { ReleaseNotes, DownloadProgressBar } from '../UpdateInfoCard';
 
 export function UpdateSection() {
@@ -58,6 +59,8 @@ export function UpdateSection() {
     installStatus,
     setInstallStatus,
     setShowInstallConfirmModal,
+    autoUpdate,
+    setAutoUpdate,
   } = useAppStore();
 
   const [showCdk, setShowCdk] = useState(false);
@@ -383,8 +386,24 @@ export function UpdateSection() {
           </div>
         ) : (
           <>
+            {/* 自动更新开关 */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <RefreshCw className="w-5 h-5 text-accent" />
+                <div>
+                  <span className="font-medium text-text-primary">
+                    {t('mirrorChyan.autoUpdate')}
+                  </span>
+                  <p className="text-xs text-text-muted mt-0.5">
+                    {t('mirrorChyan.autoUpdateHint')}
+                  </p>
+                </div>
+              </div>
+              <SwitchButton value={autoUpdate} onChange={(v) => setAutoUpdate(v)} />
+            </div>
+
             {/* 更新频道 */}
-            <div>
+            <div className="pt-4 border-t border-border">
               <div className="flex items-center gap-3 mb-3">
                 <Download className="w-5 h-5 text-accent" />
                 <span className="font-medium text-text-primary">{t('mirrorChyan.channel')}</span>

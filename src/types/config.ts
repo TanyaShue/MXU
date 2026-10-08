@@ -185,6 +185,8 @@ export interface AppSettings {
   preActionConnectDelaySec?: number;
   /** 是否开启匿名遥测（帮助改进软件），默认 true；调试 / 开发版本强制关闭 */
   helpImproveSoftware?: boolean;
+  /** 是否启用自动更新（启动后自动检查并下载更新），默认 true */
+  autoUpdate?: boolean;
 }
 
 // MXU 配置文件完整结构
@@ -260,6 +262,7 @@ export const defaultConfig: MxuConfig = {
     windowSize: defaultWindowSize,
     mirrorChyan: defaultMirrorChyanSettings,
     helpImproveSoftware: true,
+    autoUpdate: true,
   },
 };
 

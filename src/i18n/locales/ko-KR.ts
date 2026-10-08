@@ -696,6 +696,9 @@ export default {
   mirrorChyan: {
     title: '업데이트',
     debugModeNotice: '디버그 버전이므로 자동 업데이트 기능이 비활성화되었습니다',
+    autoUpdate: '자동 업데이트',
+    autoUpdateHint:
+      '시작할 때 업데이트를 자동으로 확인하고 다운로드합니다(기본값: 켜짐). 끄면 시작할 때 자동 확인과 다운로드를 하지 않습니다.',
     channel: '업데이트 채널',
     channelStable: '안정 버전',
     channelBeta: '베타 버전',

@@ -683,6 +683,8 @@ export default {
   mirrorChyan: {
     title: '更新',
     debugModeNotice: '当前为调试版本，已禁用自动更新功能',
+    autoUpdate: '自动更新',
+    autoUpdateHint: '启动后自动检查并下载更新（默认开启）；关闭后启动软件时不再自动检查和下载更新',
     channel: '更新频道',
     channelStable: '正式版',
     channelBeta: '公测版',

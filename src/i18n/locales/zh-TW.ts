@@ -679,6 +679,8 @@ export default {
   mirrorChyan: {
     title: '更新',
     debugModeNotice: '目前為除錯版本，已停用自動更新功能',
+    autoUpdate: '自動更新',
+    autoUpdateHint: '啟動後自動檢查並下載更新（預設開啟）；關閉後啟動軟體時不再自動檢查和下載更新',
     channel: '更新頻道',
     channelStable: '正式版',
     channelBeta: '公測版',

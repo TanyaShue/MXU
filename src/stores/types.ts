@@ -117,6 +117,8 @@ export interface AppState {
   autoClearLogsOnLaunch: boolean;
   /** 是否开启匿名遥测（帮助改进软件），默认 true；调试 / 开发版本强制关闭 */
   helpImproveSoftware: boolean;
+  /** 是否启用自动更新（启动后自动检查并下载更新），默认 true */
+  autoUpdate: boolean;
   customAccents: CustomAccent[];
   setTheme: (theme: Theme) => void;
   setAccentColor: (accent: AccentColor) => void;
@@ -127,6 +129,7 @@ export interface AppState {
   setMaxLogsPerInstance: (value: number) => void;
   setAutoClearLogsOnLaunch: (enabled: boolean) => void;
   setHelpImproveSoftware: (enabled: boolean) => void;
+  setAutoUpdate: (enabled: boolean) => void;
   addCustomAccent: (accent: CustomAccent) => void;
   updateCustomAccent: (id: string, accent: CustomAccent) => void;
   removeCustomAccent: (id: string) => void;
